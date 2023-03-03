@@ -43,7 +43,10 @@ fun main(args: Array<String>) {
             contentConverter = object : WebsocketContentConverter {
                 override suspend fun serialize(charset: Charset, typeInfo: TypeInfo, value: Any): Frame =
                     if (value is WorldHostS2CMessage) {
-                        Frame.Binary(false, value.encode(ByteBuffer.allocate(value.encodedSize())))
+                        Frame.Binary(true, ByteBuffer.allocate(value.encodedSize()).also {
+                            value.encode(it)
+                            it.flip()
+                        })
                     } else {
                         throw WebsocketConverterNotFoundException()
                     }
