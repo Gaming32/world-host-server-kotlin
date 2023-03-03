@@ -90,6 +90,9 @@ fun main(args: Array<String>) {
                         } catch (e: ClosedReceiveChannelException) {
                             break
                         }
+                        if (logger.isDebugEnabled) {
+                            logger.debug("Received message {}", message)
+                        }
                         with(message) {
                             handle(config, connections, connection)
                         }
