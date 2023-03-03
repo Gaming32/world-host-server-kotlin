@@ -14,6 +14,7 @@ import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
 import kotlinx.cli.default
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
+import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.util.*
 
@@ -64,7 +65,17 @@ fun main(args: Array<String>) {
         routing {
             webSocket {
                 // Can't believe Ktor makes this so difficult
-                val remoteAddr = (call as NettyApplicationCall).context.pipeline().channel().remoteAddress()
+//                val remoteAddr = ((call as RoutingApplicationCall).engineCall as NettyApplicationCall)
+//                    .context.pipeline().channel().remoteAddress()
+                val remoteAddr = call.cast<RoutingApplicationCall>()
+                    .engineCall
+                    .cast<NettyApplicationCall>()
+                    .context
+                    .pipeline()
+                    .channel()
+                    .remoteAddress()
+                    .cast<InetSocketAddress>()
+                    .address
                 val connection = Connection(
                     UUID.randomUUID(),
                     remoteAddr,
