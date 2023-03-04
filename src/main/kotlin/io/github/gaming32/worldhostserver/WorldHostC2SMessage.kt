@@ -13,7 +13,7 @@ sealed interface WorldHostC2SMessage {
             3 -> ClosedWorld(List(buf.int) { buf.uuid })
             4 -> RequestJoin(buf.uuid)
             5 -> JoinGranted(buf.uuid, JoinType.decode(buf))
-            6 -> QueryRequest(buf.uuid)
+            6 -> QueryRequest(List(buf.int) { buf.uuid })
             7 -> QueryResponse(buf.uuid, ByteArray(buf.int).also(buf::get))
             else -> throw IllegalArgumentException("Received packet with unknown type_id from client: $typeId")
         }
@@ -117,18 +117,19 @@ sealed interface WorldHostC2SMessage {
         }
     }
 
-    data class QueryRequest(val friend: UUID) : WorldHostC2SMessage {
+    data class QueryRequest(val friends: Collection<UUID>) : WorldHostC2SMessage {
         override suspend fun DefaultWebSocketServerSession.handle(
             config: ServerConfig,
             connections: ConnectionSetAsync,
             connection: Connection
         ) {
             val response = WorldHostS2CMessage.QueryRequest(connection.userUuid, connection.id)
-            connections.byUserId(friend)
-                .lastOrNull()
-                ?.takeIf { it.id != connection.id }
-                ?.session
-                ?.sendSerialized(response)
+            for (friend in friends) {
+                for (other in connections.byUserId(friend)) {
+                    if (other.id == connection.id) continue
+                    other.session.sendSerialized(response)
+                }
+            }
         }
     }
 

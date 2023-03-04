@@ -91,7 +91,7 @@ fun main(args: Array<String>) {
                     },
                     this
                 )
-                logger.info("Connection opened: {}.", connection)
+                logger.info("Connection opened: {}", connection)
                 connections.add(connection)
                 try {
                     while (true) {
@@ -112,6 +112,7 @@ fun main(args: Array<String>) {
                         }
                     }
                 } finally {
+                    logger.info("Connection closed: {}", connection)
                     connections.remove(connection)
                 }
             }
