@@ -40,6 +40,7 @@ fun main(args: Array<String>) {
     }) {
         install(WebSockets) {
             pingPeriodMillis = 10_000
+            timeoutMillis = Long.MAX_VALUE
             contentConverter = object : WebsocketContentConverter {
                 override suspend fun serialize(charset: Charset, typeInfo: TypeInfo, value: Any): Frame =
                     if (value is WorldHostS2CMessage) {
