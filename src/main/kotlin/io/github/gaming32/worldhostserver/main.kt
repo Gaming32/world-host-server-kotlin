@@ -112,6 +112,8 @@ fun main(args: Array<String>) {
                             handle(config, connections, connection)
                         }
                     }
+                } catch (e: Exception) {
+                    logger.error("An error occurred in client handling", e)
                 } finally {
                     logger.info("Connection closed: {}", connection)
                     connections.remove(connection)
