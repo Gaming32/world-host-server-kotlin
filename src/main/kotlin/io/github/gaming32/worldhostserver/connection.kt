@@ -10,7 +10,8 @@ data class Connection(
     val id: UUID,
     val address: InetAddress,
     val userUuid: UUID,
-    val session: WebSocketServerSession
+    val session: WebSocketServerSession,
+    var open: Boolean = true
 )
 
 class ConnectionSetSync {

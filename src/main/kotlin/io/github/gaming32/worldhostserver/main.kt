@@ -4,6 +4,8 @@ import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
 import kotlinx.cli.default
 
+const val PROXY_SERVER_PREFIX = "connect0000-"
+
 fun main(args: Array<String>) {
     val parser = ArgParser("world-host-server")
 

@@ -1,6 +1,7 @@
 package io.github.gaming32.worldhostserver
 
 import io.ktor.server.websocket.*
+import io.ktor.utils.io.*
 import java.nio.ByteBuffer
 import java.util.*
 
@@ -16,6 +17,7 @@ sealed interface WorldHostC2SMessage {
             6 -> QueryRequest(List(buf.int) { buf.uuid })
             7 -> QueryResponse(buf.uuid, ByteArray(buf.int).also(buf::get))
             8 -> ProxyS2CPacket(buf.long, ByteArray(buf.remaining()).also(buf::get))
+            9 -> ProxyDisconnect(buf.long)
             else -> throw IllegalArgumentException("Received packet with unknown type_id from client: $typeId")
         }
     }
@@ -32,7 +34,7 @@ sealed interface WorldHostC2SMessage {
         ) {
             val response = WorldHostS2CMessage.IsOnlineTo(connection.userUuid)
             for (friend in friends) {
-                for (other in server.connections.byUserId(friend)) {
+                for (other in server.wsConnections.byUserId(friend)) {
                     if (other.id == connection.id) continue
                     other.session.sendSerialized(response)
                 }
@@ -46,7 +48,7 @@ sealed interface WorldHostC2SMessage {
             connection: Connection
         ) {
             val response = WorldHostS2CMessage.FriendRequest(connection.userUuid)
-            for (other in server.connections.byUserId(toUser)) {
+            for (other in server.wsConnections.byUserId(toUser)) {
                 if (other.id == connection.id) continue
                 other.session.sendSerialized(response)
             }
@@ -60,7 +62,7 @@ sealed interface WorldHostC2SMessage {
         ) {
             val response = WorldHostS2CMessage.PublishedWorld(connection.userUuid)
             for (friend in friends) {
-                for (other in server.connections.byUserId(friend)) {
+                for (other in server.wsConnections.byUserId(friend)) {
                     if (other.id == connection.id) continue
                     other.session.sendSerialized(response)
                 }
@@ -75,7 +77,7 @@ sealed interface WorldHostC2SMessage {
         ) {
             val response = WorldHostS2CMessage.ClosedWorld(connection.userUuid)
             for (friend in friends) {
-                for (other in server.connections.byUserId(friend)) {
+                for (other in server.wsConnections.byUserId(friend)) {
                     if (other.id == connection.id) continue
                     other.session.sendSerialized(response)
                 }
@@ -89,7 +91,7 @@ sealed interface WorldHostC2SMessage {
             connection: Connection
         ) {
             val response = WorldHostS2CMessage.RequestJoin(connection.userUuid, connection.id)
-            server.connections.byUserId(friend)
+            server.wsConnections.byUserId(friend)
                 .lastOrNull()
                 ?.takeIf { it.id != connection.id }
                 ?.session
@@ -107,7 +109,7 @@ sealed interface WorldHostC2SMessage {
                     WorldHostS2CMessage.Error("This server does not support JoinType $joinType")
                 )
             if (connectionId == connection.id) return
-            server.connections.byId(connectionId)?.session?.sendSerialized(response)
+            server.wsConnections.byId(connectionId)?.session?.sendSerialized(response)
         }
     }
 
@@ -118,7 +120,7 @@ sealed interface WorldHostC2SMessage {
         ) {
             val response = WorldHostS2CMessage.QueryRequest(connection.userUuid, connection.id)
             for (friend in friends) {
-                for (other in server.connections.byUserId(friend)) {
+                for (other in server.wsConnections.byUserId(friend)) {
                     if (other.id == connection.id) continue
                     other.session.sendSerialized(response)
                 }
@@ -133,7 +135,7 @@ sealed interface WorldHostC2SMessage {
         ) {
             val response = WorldHostS2CMessage.QueryResponse(connection.userUuid, data)
             if (connectionId == connection.id) return
-            server.connections.byId(connectionId)?.session?.sendSerialized(response)
+            server.wsConnections.byId(connectionId)?.session?.sendSerialized(response)
         }
 
         override fun equals(other: Any?): Boolean {
@@ -160,7 +162,10 @@ sealed interface WorldHostC2SMessage {
             server: WorldHostServer,
             connection: Connection
         ) {
-            TODO("Not yet implemented")
+            server.proxyConnections[connectionId]?.apply {
+                writeFully(data)
+                flush()
+            }
         }
 
         override fun equals(other: Any?): Boolean {
@@ -179,6 +184,12 @@ sealed interface WorldHostC2SMessage {
             var result = connectionId.hashCode()
             result = 31 * result + data.contentHashCode()
             return result
+        }
+    }
+
+    data class ProxyDisconnect(val connectionId: Long) : WorldHostC2SMessage {
+        override suspend fun DefaultWebSocketServerSession.handle(server: WorldHostServer, connection: Connection) {
+            server.proxyConnections[connectionId]?.close()
         }
     }
 }

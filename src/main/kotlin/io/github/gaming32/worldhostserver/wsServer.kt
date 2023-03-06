@@ -17,7 +17,9 @@ import java.util.*
 
 private val logger = KotlinLogging.logger {}
 
+// Does not block
 fun WorldHostServer.startWsServer() {
+    logger.info("Starting WS server on port {}", config.port)
     embeddedServer(Netty, port = config.port) {
         install(WebSockets) {
             pingPeriodMillis = 10_000
@@ -72,7 +74,7 @@ fun WorldHostServer.startWsServer() {
                     this
                 )
                 logger.info("Connection opened: {}", connection)
-                connections.add(connection)
+                wsConnections.add(connection)
                 try {
                     while (true) {
                         val message = try {
@@ -94,10 +96,11 @@ fun WorldHostServer.startWsServer() {
                 } catch (e: Exception) {
                     logger.error("An error occurred in client handling", e)
                 } finally {
+                    connection.open = false
                     logger.info("Connection closed: {}", connection)
-                    connections.remove(connection)
+                    wsConnections.remove(connection)
                 }
             }
         }
-    }.start(wait = true)
+    }.start(wait = config.baseAddr == null)
 }
