@@ -1,7 +1,8 @@
 package io.github.gaming32.worldhostserver
 
+import java.net.InetAddress
 import java.nio.ByteBuffer
-import java.util.UUID
+import java.util.*
 
 sealed interface WorldHostS2CMessage {
     fun encode(buf: ByteBuffer): ByteBuffer
@@ -78,5 +79,44 @@ sealed interface WorldHostS2CMessage {
             result = 31 * result + data.contentHashCode()
             return result
         }
+    }
+
+    data class ProxyC2SPacket(val connectionId: Long, val data: ByteArray) : WorldHostS2CMessage {
+        override fun encode(buf: ByteBuffer): ByteBuffer = buf.put(9).putLong(connectionId).put(data)
+
+        override fun encodedSize() = 1 + 8 + data.size
+
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (javaClass != other?.javaClass) return false
+
+            other as ProxyC2SPacket
+
+            if (connectionId != other.connectionId) return false
+            if (!data.contentEquals(other.data)) return false
+
+            return true
+        }
+
+        override fun hashCode(): Int {
+            var result = connectionId.hashCode()
+            result = 31 * result + data.contentHashCode()
+            return result
+        }
+    }
+
+    data class ProxyConnect(val connectionId: Long, val remoteAddr: InetAddress) : WorldHostS2CMessage {
+        override fun encode(buf: ByteBuffer): ByteBuffer {
+            val address = remoteAddr.address
+            return buf.put(10).putLong(connectionId).put(address.size.toByte()).put(address)
+        }
+
+        override fun encodedSize() = 1 + 8 + 1 + remoteAddr.address.size
+    }
+
+    data class ProxyDisconnect(val connectionId: Long) : WorldHostS2CMessage {
+        override fun encode(buf: ByteBuffer): ByteBuffer = buf.put(11).putLong(connectionId)
+
+        override fun encodedSize() = 1 + 8
     }
 }

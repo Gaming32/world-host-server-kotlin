@@ -15,6 +15,7 @@ sealed interface WorldHostC2SMessage {
             5 -> JoinGranted(buf.uuid, JoinType.decode(buf))
             6 -> QueryRequest(List(buf.int) { buf.uuid })
             7 -> QueryResponse(buf.uuid, ByteArray(buf.int).also(buf::get))
+            8 -> ProxyS2CPacket(buf.long, ByteArray(buf.remaining()).also(buf::get))
             else -> throw IllegalArgumentException("Received packet with unknown type_id from client: $typeId")
         }
     }
@@ -149,6 +150,34 @@ sealed interface WorldHostC2SMessage {
             if (javaClass != other?.javaClass) return false
 
             other as QueryResponse
+
+            if (connectionId != other.connectionId) return false
+            if (!data.contentEquals(other.data)) return false
+
+            return true
+        }
+
+        override fun hashCode(): Int {
+            var result = connectionId.hashCode()
+            result = 31 * result + data.contentHashCode()
+            return result
+        }
+    }
+
+    data class ProxyS2CPacket(val connectionId: Long, val data: ByteArray) : WorldHostC2SMessage {
+        override suspend fun DefaultWebSocketServerSession.handle(
+            config: ServerConfig,
+            connections: ConnectionSetAsync,
+            connection: Connection
+        ) {
+            TODO("Not yet implemented")
+        }
+
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (javaClass != other?.javaClass) return false
+
+            other as ProxyS2CPacket
 
             if (connectionId != other.connectionId) return false
             if (!data.contentEquals(other.data)) return false
