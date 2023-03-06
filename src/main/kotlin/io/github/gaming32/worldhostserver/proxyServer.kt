@@ -24,7 +24,7 @@ fun WorldHostServer.startProxyServer() {
     if (config.baseAddr == null) return
     logger.info("Starting proxy server")
     runBlocking {
-        aSocket(SelectorManager(Dispatchers.IO)).tcp().bind(port = config.javaPort).use { serverSocket ->
+        aSocket(SelectorManager(Dispatchers.IO)).tcp().bind(port = config.inJavaPort).use { serverSocket ->
             var nextConnectionId = 0L
             logger.info("Started proxy server on {}", serverSocket.localAddress)
             while (true) {
@@ -37,6 +37,7 @@ fun WorldHostServer.startProxyServer() {
 
                     val handshakeData = ByteArray(receiveChannel.readVarInt()).also { receiveChannel.readFully(it) }
                     val inp = ByteArrayInputStream(handshakeData)
+                    inp.readVarInt() // Packet ID
                     inp.readVarInt() // Protocol version
                     val thisAddr = inp.readString(255)
                     inp.readVarInt() // Port
@@ -72,22 +73,20 @@ fun WorldHostServer.startProxyServer() {
                                 write(handshakeData)
                             }.toByteArray()
                         ))
+                        val buffer = ByteArray(8192)
                         while (!sendChannel.isClosedForWrite) {
                             if (!connection.open) {
                                 sendChannel.close()
                                 break
                             }
-                            val packetData = ByteArray(receiveChannel.readVarInt()).also { receiveChannel.readFully(it) }
-                            if (!connection.open) {
+                            val n = receiveChannel.readAvailable(buffer)
+                            if (n == 0) continue
+                            if (!connection.open || n == -1) {
                                 sendChannel.close()
                                 break
                             }
                             connection.session.sendSerialized(WorldHostS2CMessage.ProxyC2SPacket(
-                                connectionId,
-                                ByteArrayOutputStream().apply {
-                                    writeVarInt(packetData.size)
-                                    write(packetData)
-                                }.toByteArray()
+                                connectionId, buffer.copyOf(n)
                             ))
                         }
                     } catch (_: ClosedReceiveChannelException) {

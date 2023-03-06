@@ -20,7 +20,7 @@ sealed interface JoinType {
 
     object Proxy : JoinType {
         override fun toOnlineGame(connection: Connection, config: WorldHostServer.Config) = config.baseAddr?.let {
-            WorldHostS2CMessage.OnlineGame("$PROXY_SERVER_PREFIX${connection.id}.$it", config.javaPort)
+            WorldHostS2CMessage.OnlineGame("$PROXY_SERVER_PREFIX${connection.id}.$it", config.exJavaPort)
         }
 
         override fun toString() = "Proxy"

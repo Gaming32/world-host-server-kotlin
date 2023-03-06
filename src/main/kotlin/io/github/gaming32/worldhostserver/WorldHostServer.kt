@@ -7,7 +7,7 @@ import kotlinx.coroutines.sync.Mutex
 private val logger = KotlinLogging.logger {}
 
 class WorldHostServer(val config: Config) {
-    data class Config(val port: Int, val baseAddr: String?, val javaPort: Int)
+    data class Config(val port: Int, val baseAddr: String?, val inJavaPort: Int, val exJavaPort: Int)
 
     val wsConnections = ConnectionSetAsync()
 

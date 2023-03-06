@@ -11,9 +11,10 @@ fun main(args: Array<String>) {
 
     val port by parser.option(ArgType.Int, shortName = "p", description = "Port to bind to").default(9646)
     val baseAddr by parser.option(ArgType.String, shortName = "b", description = "Base address to use for proxy connections")
-    val javaPort by parser.option(ArgType.Int, shortName = "J", description = "Port to use for Java Edition proxy connections").default(25565)
+    val inJavaPort by parser.option(ArgType.Int, shortName = "j", description = "Port to use for Java Edition proxy connections").default(25565)
+    val exJavaPort by parser.option(ArgType.Int, shortName = "J", description = "External port to use for Java Edition proxy connections")
 
     parser.parse(args)
 
-    WorldHostServer(WorldHostServer.Config(port, baseAddr, javaPort)).start()
+    WorldHostServer(WorldHostServer.Config(port, baseAddr, inJavaPort, exJavaPort ?: inJavaPort)).start()
 }
