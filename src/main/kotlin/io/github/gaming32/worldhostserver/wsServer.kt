@@ -94,7 +94,7 @@ fun WorldHostServer.startWsServer() {
                         }
                     }
                 } catch (e: Exception) {
-                    logger.error("An error occurred in client handling", e)
+                    logger.error("An error occurred in WS client handling", e)
                 } finally {
                     connection.open = false
                     logger.info("Connection closed: {}", connection)

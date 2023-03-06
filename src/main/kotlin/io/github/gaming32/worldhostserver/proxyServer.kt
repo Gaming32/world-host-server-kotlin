@@ -91,6 +91,8 @@ fun WorldHostServer.startProxyServer() {
                             ))
                         }
                     } catch (_: ClosedReceiveChannelException) {
+                    } catch (e: Exception) {
+                        logger.error("An error occurred in proxy client handling", e)
                     } finally {
                         proxyConnectionsLock.withLock {
                             proxyConnections -= connectionId
