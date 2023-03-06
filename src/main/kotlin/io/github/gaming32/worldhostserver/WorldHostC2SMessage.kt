@@ -21,20 +21,18 @@ sealed interface WorldHostC2SMessage {
     }
 
     suspend fun DefaultWebSocketServerSession.handle(
-        config: ServerConfig,
-        connections: ConnectionSetAsync,
+        server: WorldHostServer,
         connection: Connection
     )
 
     data class ListOnline(val friends: Collection<UUID>) : WorldHostC2SMessage {
         override suspend fun DefaultWebSocketServerSession.handle(
-            config: ServerConfig,
-            connections: ConnectionSetAsync,
+            server: WorldHostServer,
             connection: Connection
         ) {
             val response = WorldHostS2CMessage.IsOnlineTo(connection.userUuid)
             for (friend in friends) {
-                for (other in connections.byUserId(friend)) {
+                for (other in server.connections.byUserId(friend)) {
                     if (other.id == connection.id) continue
                     other.session.sendSerialized(response)
                 }
@@ -44,12 +42,11 @@ sealed interface WorldHostC2SMessage {
 
     data class FriendRequest(val toUser: UUID) : WorldHostC2SMessage {
         override suspend fun DefaultWebSocketServerSession.handle(
-            config: ServerConfig,
-            connections: ConnectionSetAsync,
+            server: WorldHostServer,
             connection: Connection
         ) {
             val response = WorldHostS2CMessage.FriendRequest(connection.userUuid)
-            for (other in connections.byUserId(toUser)) {
+            for (other in server.connections.byUserId(toUser)) {
                 if (other.id == connection.id) continue
                 other.session.sendSerialized(response)
             }
@@ -58,13 +55,12 @@ sealed interface WorldHostC2SMessage {
 
     data class PublishedWorld(val friends: Collection<UUID>) : WorldHostC2SMessage {
         override suspend fun DefaultWebSocketServerSession.handle(
-            config: ServerConfig,
-            connections: ConnectionSetAsync,
+            server: WorldHostServer,
             connection: Connection
         ) {
             val response = WorldHostS2CMessage.PublishedWorld(connection.userUuid)
             for (friend in friends) {
-                for (other in connections.byUserId(friend)) {
+                for (other in server.connections.byUserId(friend)) {
                     if (other.id == connection.id) continue
                     other.session.sendSerialized(response)
                 }
@@ -74,13 +70,12 @@ sealed interface WorldHostC2SMessage {
 
     data class ClosedWorld(val friends: Collection<UUID>) : WorldHostC2SMessage {
         override suspend fun DefaultWebSocketServerSession.handle(
-            config: ServerConfig,
-            connections: ConnectionSetAsync,
+            server: WorldHostServer,
             connection: Connection
         ) {
             val response = WorldHostS2CMessage.ClosedWorld(connection.userUuid)
             for (friend in friends) {
-                for (other in connections.byUserId(friend)) {
+                for (other in server.connections.byUserId(friend)) {
                     if (other.id == connection.id) continue
                     other.session.sendSerialized(response)
                 }
@@ -90,12 +85,11 @@ sealed interface WorldHostC2SMessage {
 
     data class RequestJoin(val friend: UUID) : WorldHostC2SMessage {
         override suspend fun DefaultWebSocketServerSession.handle(
-            config: ServerConfig,
-            connections: ConnectionSetAsync,
+            server: WorldHostServer,
             connection: Connection
         ) {
             val response = WorldHostS2CMessage.RequestJoin(connection.userUuid, connection.id)
-            connections.byUserId(friend)
+            server.connections.byUserId(friend)
                 .lastOrNull()
                 ?.takeIf { it.id != connection.id }
                 ?.session
@@ -105,28 +99,26 @@ sealed interface WorldHostC2SMessage {
 
     data class JoinGranted(val connectionId: UUID, val joinType: JoinType) : WorldHostC2SMessage {
         override suspend fun DefaultWebSocketServerSession.handle(
-            config: ServerConfig,
-            connections: ConnectionSetAsync,
+            server: WorldHostServer,
             connection: Connection
         ) {
-            val response = joinType.toOnlineGame(connection, config)
+            val response = joinType.toOnlineGame(connection, server.config)
                 ?: return connection.session.sendSerialized(
                     WorldHostS2CMessage.Error("This server does not support JoinType $joinType")
                 )
             if (connectionId == connection.id) return
-            connections.byId(connectionId)?.session?.sendSerialized(response)
+            server.connections.byId(connectionId)?.session?.sendSerialized(response)
         }
     }
 
     data class QueryRequest(val friends: Collection<UUID>) : WorldHostC2SMessage {
         override suspend fun DefaultWebSocketServerSession.handle(
-            config: ServerConfig,
-            connections: ConnectionSetAsync,
+            server: WorldHostServer,
             connection: Connection
         ) {
             val response = WorldHostS2CMessage.QueryRequest(connection.userUuid, connection.id)
             for (friend in friends) {
-                for (other in connections.byUserId(friend)) {
+                for (other in server.connections.byUserId(friend)) {
                     if (other.id == connection.id) continue
                     other.session.sendSerialized(response)
                 }
@@ -136,13 +128,12 @@ sealed interface WorldHostC2SMessage {
 
     data class QueryResponse(val connectionId: UUID, val data: ByteArray) : WorldHostC2SMessage {
         override suspend fun DefaultWebSocketServerSession.handle(
-            config: ServerConfig,
-            connections: ConnectionSetAsync,
+            server: WorldHostServer,
             connection: Connection
         ) {
             val response = WorldHostS2CMessage.QueryResponse(connection.userUuid, data)
             if (connectionId == connection.id) return
-            connections.byId(connectionId)?.session?.sendSerialized(response)
+            server.connections.byId(connectionId)?.session?.sendSerialized(response)
         }
 
         override fun equals(other: Any?): Boolean {
@@ -166,8 +157,7 @@ sealed interface WorldHostC2SMessage {
 
     data class ProxyS2CPacket(val connectionId: Long, val data: ByteArray) : WorldHostC2SMessage {
         override suspend fun DefaultWebSocketServerSession.handle(
-            config: ServerConfig,
-            connections: ConnectionSetAsync,
+            server: WorldHostServer,
             connection: Connection
         ) {
             TODO("Not yet implemented")

@@ -11,15 +11,15 @@ sealed interface JoinType {
         }
     }
 
-    fun toOnlineGame(connection: Connection, config: ServerConfig): WorldHostS2CMessage.OnlineGame?
+    fun toOnlineGame(connection: Connection, config: WorldHostServer.Config): WorldHostS2CMessage.OnlineGame?
 
     data class UPnP(val port: Int) : JoinType {
-        override fun toOnlineGame(connection: Connection, config: ServerConfig) =
+        override fun toOnlineGame(connection: Connection, config: WorldHostServer.Config) =
             WorldHostS2CMessage.OnlineGame(connection.address.hostAddress, port)
     }
 
     object Proxy : JoinType {
-        override fun toOnlineGame(connection: Connection, config: ServerConfig) = config.baseAddr?.let {
+        override fun toOnlineGame(connection: Connection, config: WorldHostServer.Config) = config.baseAddr?.let {
             WorldHostS2CMessage.OnlineGame("connect0000-${connection.id}.$it", config.javaPort)
         }
 

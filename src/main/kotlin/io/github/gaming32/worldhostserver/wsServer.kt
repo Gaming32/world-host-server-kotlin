@@ -17,11 +17,8 @@ import java.util.*
 
 private val logger = KotlinLogging.logger {}
 
-fun startWsServer(config: ServerConfig) {
-    val connections = ConnectionSetAsync()
-
-    embeddedServer(Netty, port = config.port, configure = {
-    }) {
+fun WorldHostServer.startWsServer() {
+    embeddedServer(Netty, port = config.port) {
         install(WebSockets) {
             pingPeriodMillis = 10_000
             timeoutMillis = Long.MAX_VALUE
@@ -91,7 +88,7 @@ fun startWsServer(config: ServerConfig) {
                             logger.debug("Received message {}", message)
                         }
                         with(message) {
-                            handle(config, connections, connection)
+                            handle(this@startWsServer, connection)
                         }
                     }
                 } catch (e: Exception) {
