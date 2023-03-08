@@ -6,6 +6,8 @@ import io.ktor.network.sockets.*
 import io.ktor.server.websocket.*
 import io.ktor.util.network.*
 import io.ktor.utils.io.*
+import io.ktor.utils.io.core.*
+import io.ktor.utils.io.streams.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.coroutines.launch
@@ -16,6 +18,7 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.net.InetSocketAddress
 import java.util.*
+import kotlin.io.use
 
 private val logger = KotlinLogging.logger {}
 
@@ -40,7 +43,7 @@ fun WorldHostServer.startProxyServer() {
                     inp.readVarInt() // Packet ID
                     inp.readVarInt() // Protocol version
                     val thisAddr = inp.readString(255)
-                    inp.readVarInt() // Port
+                    inp.skip(2) // Port
                     val nextState = inp.readVarInt()
 
                     if (!thisAddr.startsWith(PROXY_SERVER_PREFIX)) {
@@ -108,7 +111,7 @@ fun WorldHostServer.startProxyServer() {
 }
 
 private suspend fun disconnect(sendChannel: ByteWriteChannel, nextState: Int, message: String) {
-    @Language("JSON") val jsonMessage = """{"text":$message,"color":"red"}"""
+    @Language("JSON") val jsonMessage = """{"text":"$message","color":"red"}"""
     val out = ByteArrayOutputStream()
     out.writeVarInt(0x00)
     if (nextState == 1) {
@@ -123,5 +126,20 @@ private suspend fun disconnect(sendChannel: ByteWriteChannel, nextState: Int, me
     out2.write(out.toByteArray())
     sendChannel.writeFully(out2.toByteArray())
     sendChannel.flush()
+
+    if (nextState == 1) {
+        out.reset()
+        out.writeVarInt(0x01)
+        repeat(8) {
+            out.write(0)
+        }
+        out2.reset()
+        out2.writeVarInt(out.size())
+        @Suppress("BlockingMethodInNonBlockingContext")
+        out2.write(out.toByteArray())
+        sendChannel.writeFully(out2.toByteArray())
+        sendChannel.flush()
+    }
+
     sendChannel.close()
 }
