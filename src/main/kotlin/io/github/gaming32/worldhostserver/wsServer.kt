@@ -17,12 +17,10 @@ import java.util.*
 
 private val logger = KotlinLogging.logger {}
 
-// Does not block
 fun WorldHostServer.startWsServer() {
     logger.info("Starting WS server on port {}", config.port)
     embeddedServer(Netty, port = config.port) {
         install(WebSockets) {
-            pingPeriodMillis = 10_000
             timeoutMillis = Long.MAX_VALUE
             contentConverter = object : WebsocketContentConverter {
                 override suspend fun serialize(charset: Charset, typeInfo: TypeInfo, value: Any): Frame =
