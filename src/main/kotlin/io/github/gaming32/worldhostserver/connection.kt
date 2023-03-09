@@ -11,11 +11,17 @@ data class Connection(
     val address: InetAddress,
     val userUuid: UUID,
     val session: WebSocketServerSession,
+    var country: String? = null,
     var open: Boolean = true
-)
+) {
+    override fun toString(): String {
+        return "Connection(id=$id, address=$address, userUuid=$userUuid)"
+    }
+}
 
 class ConnectionSetSync {
-    private val connections = mutableMapOf<UUID, Connection>()
+    @PublishedApi
+    internal val connections = mutableMapOf<UUID, Connection>()
     private val connectionsByUserId = mutableMapOf<UUID, MutableList<Connection>>()
 
     fun byId(id: UUID) = connections[id]
@@ -36,11 +42,15 @@ class ConnectionSetSync {
             }
         }
     }
+
+    inline fun forEach(action: (Connection) -> Unit) = connections.values.forEach(action)
 }
 
 class ConnectionSetAsync {
-    private val lock = Mutex()
-    private val sync = ConnectionSetSync()
+    @PublishedApi
+    internal val lock = Mutex()
+    @PublishedApi
+    internal val sync = ConnectionSetSync()
 
     suspend fun byId(id: UUID) = lock.withLock { sync.byId(id) }
 
@@ -49,4 +59,6 @@ class ConnectionSetAsync {
     suspend fun add(connection: Connection) = lock.withLock { sync.add(connection) }
 
     suspend fun remove(connection: Connection) = lock.withLock { sync.remove(connection) }
+
+    suspend inline fun forEach(action: (Connection) -> Unit) = lock.withLock { sync.forEach(action) }
 }

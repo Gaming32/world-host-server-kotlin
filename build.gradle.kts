@@ -2,6 +2,7 @@ plugins {
     application
     kotlin("jvm") version "1.8.10"
     id("io.ktor.plugin") version "2.1.1" // It builds fat JARs
+    id("net.kyori.blossom") version "1.3.1"
 }
 
 group = "io.github.gaming32"
@@ -33,8 +34,16 @@ dependencies {
     implementation("io.ktor:ktor-server-netty:$ktorVersion")
     implementation("io.ktor:ktor-server-websockets:$ktorVersion")
     implementation("io.ktor:ktor-network:$ktorVersion")
+    implementation("io.ktor:ktor-client-core:$ktorVersion")
+    implementation("io.ktor:ktor-client-java:$ktorVersion")
+    implementation("io.ktor:ktor-client-content-negotiation:$ktorVersion")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
 
     implementation("org.jetbrains.kotlinx:kotlinx-cli:0.3.5")
+}
+
+blossom {
+    replaceToken("\\\${version}", project.version, "src/main/kotlin/io/github/gaming32/worldhostserver/versionHolder.kt")
 }
 
 kotlin {

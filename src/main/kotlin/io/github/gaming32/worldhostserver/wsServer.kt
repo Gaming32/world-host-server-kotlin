@@ -1,6 +1,8 @@
 package io.github.gaming32.worldhostserver
 
 import io.github.oshai.KotlinLogging
+import io.ktor.client.call.*
+import io.ktor.client.request.*
 import io.ktor.serialization.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
@@ -11,6 +13,9 @@ import io.ktor.util.reflect.*
 import io.ktor.utils.io.charsets.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
+import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.util.*
@@ -72,6 +77,21 @@ fun WorldHostServer.startWsServer() {
                     this
                 )
                 logger.info("Connection opened: {}", connection)
+                launch {
+                    val jsonResponse: JsonObject = httpClient.get("https://api.iplocation.net/") {
+                        parameter("ip", connection.address.hostAddress)
+                    }.body()
+                    val countryCode = jsonResponse["country_code2"].castOrNull<JsonPrimitive>()?.content
+                    if (countryCode == null) {
+                        logger.warn("No country code returned")
+                        return@launch
+                    }
+                    if (countryCode !in VALID_COUNTRY_CODES) {
+                        logger.warn("Invalid country code {}", countryCode)
+                        return@launch
+                    }
+                    connection.country = countryCode
+                }
                 wsConnections.add(connection)
                 try {
                     while (true) {
