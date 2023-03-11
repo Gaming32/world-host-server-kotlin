@@ -10,6 +10,7 @@ import io.ktor.utils.io.core.*
 import io.ktor.utils.io.streams.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.withLock
@@ -79,15 +80,23 @@ fun WorldHostServer.startProxyServer() {
                         ))
                         val buffer = ByteArray(24576)
                         while (!sendChannel.isClosedForWrite) {
-                            if (!connection.open) {
+                            if (!connection!!.open) {
                                 sendChannel.close()
                                 break
                             }
                             val n = receiveChannel.readAvailable(buffer)
                             if (n == 0) continue
-                            if (!connection.open || n == -1) {
+                            if (n == -1) {
                                 sendChannel.close()
                                 break
+                            }
+                            if (!connection.open) {
+                                delay(10)
+                                connection = wsConnections.byId(destUuid)
+                                if (connection == null || !connection.open) {
+                                    sendChannel.close()
+                                    break
+                                }
                             }
                             connection.session.sendSerialized(WorldHostS2CMessage.ProxyC2SPacket(
                                 connectionId, buffer.copyOf(n)
