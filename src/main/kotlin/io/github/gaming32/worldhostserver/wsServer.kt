@@ -57,7 +57,7 @@ fun WorldHostServer.startWsServer() {
         routing {
             webSocket {
                 // Can't believe Ktor makes this so difficult
-                val remoteAddr = call.request.origin.remoteAddress
+                val remoteAddr = call.request.origin.remoteHost
                 val connection = Connection(
                     UUID.randomUUID(),
                     remoteAddr,
