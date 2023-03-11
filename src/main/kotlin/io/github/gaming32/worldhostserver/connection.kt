@@ -43,6 +43,8 @@ class ConnectionSetSync {
     }
 
     inline fun forEach(action: (Connection) -> Unit) = connections.values.forEach(action)
+
+    val size get() = connections.size
 }
 
 class ConnectionSetAsync {
@@ -60,4 +62,6 @@ class ConnectionSetAsync {
     suspend fun remove(connection: Connection) = lock.withLock { sync.remove(connection) }
 
     suspend inline fun forEach(action: (Connection) -> Unit) = lock.withLock { sync.forEach(action) }
+
+    val size get() = sync.size
 }

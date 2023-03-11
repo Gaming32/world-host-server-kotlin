@@ -71,6 +71,7 @@ fun WorldHostServer.startWsServer() {
                     this
                 )
                 logger.info("Connection opened: {}", connection)
+                logger.info("There are {} open connections.", wsConnections.size)
                 launch {
                     val jsonResponse: JsonObject = httpClient.get("https://api.iplocation.net/") {
                         parameter("ip", connection.address)
@@ -110,6 +111,7 @@ fun WorldHostServer.startWsServer() {
                 } finally {
                     connection.open = false
                     logger.info("Connection closed: {}", connection)
+                    logger.info("There are {} open connections.", wsConnections.size)
                     wsConnections.remove(connection)
                 }
             }
