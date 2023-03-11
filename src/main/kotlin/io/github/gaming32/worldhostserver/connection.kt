@@ -3,12 +3,11 @@ package io.github.gaming32.worldhostserver
 import io.ktor.server.websocket.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import java.net.InetAddress
 import java.util.*
 
 data class Connection(
     val id: UUID,
-    val address: InetAddress,
+    val address: String,
     val userUuid: UUID,
     val session: WebSocketServerSession,
     var country: String? = null,

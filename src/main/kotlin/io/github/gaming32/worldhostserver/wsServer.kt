@@ -7,6 +7,7 @@ import io.ktor.serialization.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
+import io.ktor.server.plugins.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.util.reflect.*
@@ -16,7 +17,6 @@ import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.util.*
 
@@ -55,15 +55,7 @@ fun WorldHostServer.startWsServer() {
         routing {
             webSocket {
                 // Can't believe Ktor makes this so difficult
-                val remoteAddr = call.cast<RoutingApplicationCall>()
-                    .engineCall
-                    .cast<NettyApplicationCall>()
-                    .context
-                    .pipeline()
-                    .channel()
-                    .remoteAddress()
-                    .cast<InetSocketAddress>()
-                    .address
+                val remoteAddr = call.request.origin.remoteAddress
                 val connection = Connection(
                     UUID.randomUUID(),
                     remoteAddr,
@@ -79,7 +71,7 @@ fun WorldHostServer.startWsServer() {
                 logger.info("Connection opened: {}", connection)
                 launch {
                     val jsonResponse: JsonObject = httpClient.get("https://api.iplocation.net/") {
-                        parameter("ip", connection.address.hostAddress)
+                        parameter("ip", connection.address)
                     }.body()
                     val countryCode = jsonResponse["country_code2"].castOrNull<JsonPrimitive>()?.content
                     if (countryCode == null) {
