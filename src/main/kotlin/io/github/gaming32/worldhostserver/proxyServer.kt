@@ -35,33 +35,34 @@ fun WorldHostServer.startProxyServer() {
                 logger.info("Accepted proxy connection from {}", proxySocket.remoteAddress)
                 val connectionId = nextConnectionId++
                 launch {
-                    val receiveChannel = proxySocket.openReadChannel()
-                    val sendChannel = proxySocket.openWriteChannel()
-
-                    val handshakeData = ByteArray(receiveChannel.readVarInt()).also { receiveChannel.readFully(it) }
-                    val inp = ByteArrayInputStream(handshakeData)
-                    inp.readVarInt() // Packet ID
-                    inp.readVarInt() // Protocol version
-                    val thisAddr = inp.readString(255)
-                    inp.skip(2) // Port
-                    val nextState = inp.readVarInt()
-
-                    if (!thisAddr.startsWith(PROXY_SERVER_PREFIX)) {
-                        // Star Trek humor
-                        return@launch disconnect(sendChannel, nextState, "I'm a proxy server, not an engineer!")
-                    }
-
-                    val uuidStr = thisAddr.substring(PROXY_SERVER_PREFIX.length).substringBefore('.')
-                    val destUuid = try {
-                        UUID.fromString(uuidStr)
-                    } catch (e: Exception) {
-                        return@launch disconnect(sendChannel, nextState, "Invalid UUID: $uuidStr")
-                    }
-
-                    val connection = wsConnections.byId(destUuid) ?:
-                        return@launch disconnect(sendChannel, nextState, "Couldn't find that server")
-
+                    var connection: Connection? = null
                     try {
+                        val receiveChannel = proxySocket.openReadChannel()
+                        val sendChannel = proxySocket.openWriteChannel()
+
+                        val handshakeData = ByteArray(receiveChannel.readVarInt()).also { receiveChannel.readFully(it) }
+                        val inp = ByteArrayInputStream(handshakeData)
+                        inp.readVarInt() // Packet ID
+                        inp.readVarInt() // Protocol version
+                        val thisAddr = inp.readString(255)
+                        inp.skip(2) // Port
+                        val nextState = inp.readVarInt()
+
+                        if (!thisAddr.startsWith(PROXY_SERVER_PREFIX)) {
+                            // Star Trek humor
+                            return@launch disconnect(sendChannel, nextState, "I'm a proxy server, not an engineer!")
+                        }
+
+                        val uuidStr = thisAddr.substring(PROXY_SERVER_PREFIX.length).substringBefore('.')
+                        val destUuid = try {
+                            UUID.fromString(uuidStr)
+                        } catch (e: Exception) {
+                            return@launch disconnect(sendChannel, nextState, "Invalid UUID: $uuidStr")
+                        }
+
+                        connection = wsConnections.byId(destUuid) ?:
+                            return@launch disconnect(sendChannel, nextState, "Couldn't find that server")
+
                         proxyConnectionsLock.withLock {
                             proxyConnections[connectionId] = sendChannel
                         }
@@ -99,7 +100,7 @@ fun WorldHostServer.startProxyServer() {
                         proxyConnectionsLock.withLock {
                             proxyConnections -= connectionId
                         }
-                        if (connection.open) {
+                        if (connection?.open == true) {
                             connection.session.sendSerialized(WorldHostS2CMessage.ProxyDisconnect(connectionId))
                         }
                         logger.info("Proxy connection closed")
