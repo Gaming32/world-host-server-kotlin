@@ -8,6 +8,7 @@ import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.ktor.server.plugins.*
+import io.ktor.server.plugins.forwardedheaders.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.util.reflect.*
@@ -52,6 +53,7 @@ fun WorldHostServer.startWsServer() {
                 override fun isApplicable(frame: Frame) = frame.frameType == FrameType.BINARY
             }
         }
+        install(XForwardedHeaders)
         routing {
             webSocket {
                 // Can't believe Ktor makes this so difficult
