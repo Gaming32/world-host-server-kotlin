@@ -13,6 +13,10 @@ private val logger = KotlinLogging.logger {}
 
 @OptIn(DelicateCoroutinesApi::class)
 fun WorldHostServer.runAnalytics() = GlobalScope.launch {
+    if (!config.analyticsTime.isPositive()) {
+        logger.info("Analytics disabled by request.")
+        return@launch
+    }
     logger.info("Starting analytics system to update every ${config.analyticsTime}")
     val file = File("analytics.csv")
     while (true) {
