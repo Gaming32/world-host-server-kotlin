@@ -39,6 +39,7 @@ dependencies {
     implementation("io.ktor:ktor-client-content-negotiation:$ktorVersion")
     implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
     implementation("io.ktor:ktor-server-forwarded-header:$ktorVersion")
+    implementation("io.ktor:ktor-server-auto-head-response:$ktorVersion")
 
     implementation("org.jetbrains.kotlinx:kotlinx-cli:0.3.5")
 }

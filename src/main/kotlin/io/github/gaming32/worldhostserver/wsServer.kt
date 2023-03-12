@@ -8,6 +8,7 @@ import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.ktor.server.plugins.*
+import io.ktor.server.plugins.autohead.*
 import io.ktor.server.plugins.forwardedheaders.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
@@ -55,6 +56,7 @@ fun WorldHostServer.startWsServer() {
             }
         }
         install(XForwardedHeaders)
+        install(AutoHeadResponse)
         routing {
             get {
                 call.respondText("This server appears to be working!")
