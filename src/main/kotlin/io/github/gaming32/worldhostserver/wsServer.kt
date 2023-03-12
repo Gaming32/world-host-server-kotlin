@@ -55,7 +55,9 @@ fun WorldHostServer.startWsServer() {
                 override fun isApplicable(frame: Frame) = frame.frameType == FrameType.BINARY
             }
         }
-        install(XForwardedHeaders)
+        install(XForwardedHeaders) {
+            useLastProxy()
+        }
         install(AutoHeadResponse)
         routing {
             get {
