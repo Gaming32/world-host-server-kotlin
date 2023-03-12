@@ -91,7 +91,7 @@ fun WorldHostServer.startProxyServer() {
                                 break
                             }
                             if (!connection.open) {
-                                delay(10)
+                                delay(500)
                                 connection = wsConnections.byId(destUuid)
                                 if (connection == null || !connection.open) {
                                     sendChannel.close()
