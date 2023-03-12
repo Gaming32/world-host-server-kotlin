@@ -9,6 +9,7 @@ import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.ktor.server.plugins.*
 import io.ktor.server.plugins.forwardedheaders.*
+import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.util.reflect.*
@@ -55,6 +56,9 @@ fun WorldHostServer.startWsServer() {
         }
         install(XForwardedHeaders)
         routing {
+            get {
+                call.respondText("This server appears to be working!")
+            }
             webSocket {
                 // Can't believe Ktor makes this so difficult
                 val remoteAddr = call.request.origin.remoteHost
