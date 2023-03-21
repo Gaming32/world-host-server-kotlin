@@ -28,7 +28,7 @@ fun WorldHostServer.runAnalytics() = GlobalScope.launch {
         logger.info("Updating analytics.csv")
         val timestamp = OffsetDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
         var total = 0
-        val byCountry = VALID_COUNTRY_CODES.associateWithTo(mutableMapOf()) { 0 }
+        val byCountry = mutableMapOf<String, Int>()
         wsConnections.forEach { connection ->
             connection.country?.let { byCountry[it] = (byCountry[it] ?: 0) + 1 }
             total++
