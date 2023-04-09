@@ -119,4 +119,11 @@ sealed interface WorldHostS2CMessage {
 
         override fun encodedSize() = 1 + 8
     }
+
+    data class ConnectionInfo(val connectionId: UUID, val baseIp: String, val basePort: Int) : WorldHostS2CMessage {
+        override fun encode(buf: ByteBuffer): ByteBuffer =
+            buf.putUuid(connectionId).putString(baseIp).putShort(basePort.toShort())
+
+        override fun encodedSize() = 1 + 16 + 2 + baseIp.length + 2
+    }
 }

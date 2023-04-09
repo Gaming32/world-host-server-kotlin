@@ -96,6 +96,9 @@ fun WorldHostServer.startWsServer() {
                 }
                 wsConnections.add(connection)
                 logger.info("There are {} open connections.", wsConnections.size)
+                sendSerialized(WorldHostS2CMessage.ConnectionInfo(
+                    connection.id, config.baseAddr ?: "", config.exJavaPort
+                ))
                 try {
                     while (true) {
                         val message = try {
