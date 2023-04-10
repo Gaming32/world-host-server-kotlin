@@ -25,6 +25,8 @@ import java.util.*
 
 private val logger = KotlinLogging.logger {}
 
+data class IdsPair(val userId: UUID, val connectionId: UUID)
+
 fun WorldHostServer.startWsServer() {
     logger.info("Starting WS server on port {}", config.port)
     embeddedServer(Netty, port = config.port) {
@@ -42,8 +44,15 @@ fun WorldHostServer.startWsServer() {
                     }
 
                 override suspend fun deserialize(charset: Charset, typeInfo: TypeInfo, content: Frame): Any =
-                    when (typeInfo.type) {
-                        UUID::class -> content.buffer.uuid
+                    when (typeInfo.kotlinType) {
+                        IdsPair::class -> IdsPair(
+                            content.buffer.uuid,
+                            if (content.buffer.hasRemaining()) {
+                                content.buffer.uuid
+                            } else {
+                                UUID.randomUUID()
+                            }
+                        )
                         WorldHostC2SMessage::class -> try {
                             WorldHostC2SMessage.decode(content.buffer)
                         } catch (e: IllegalArgumentException) {
@@ -64,11 +73,8 @@ fun WorldHostServer.startWsServer() {
                 call.respondText("This server appears to be working!")
             }
             webSocket {
-                // Can't believe Ktor makes this so difficult
                 val remoteAddr = call.request.origin.remoteHost
                 val connection = Connection(
-                    UUID.randomUUID(),
-                    remoteAddr,
                     try {
                         receiveDeserialized()
                     } catch (e: Exception) {
@@ -76,7 +82,7 @@ fun WorldHostServer.startWsServer() {
                         close(CloseReason(CloseReason.Codes.PROTOCOL_ERROR, "Invalid handshake: $e"))
                         return@webSocket
                     },
-                    this
+                    remoteAddr, this
                 )
                 logger.info("Connection opened: {}", connection)
                 launch {
@@ -94,7 +100,13 @@ fun WorldHostServer.startWsServer() {
                     }
                     connection.country = countryCode
                 }
-                wsConnections.add(connection)
+                try {
+                    wsConnections.add(connection)
+                } catch (e: IllegalStateException) {
+                    logger.warn(e.localizedMessage, e)
+                    close(CloseReason(CloseReason.Codes.PROTOCOL_ERROR, "That connection ID is already taken!"))
+                    return@webSocket
+                }
                 logger.info("There are {} open connections.", wsConnections.size)
                 sendSerialized(WorldHostS2CMessage.ConnectionInfo(
                     connection.id, config.baseAddr ?: "", config.exJavaPort

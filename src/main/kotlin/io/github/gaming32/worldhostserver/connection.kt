@@ -13,6 +13,9 @@ data class Connection(
     var country: String? = null,
     var open: Boolean = true
 ) {
+    constructor(ids: IdsPair, address: String, session: WebSocketServerSession) :
+        this(ids.connectionId, address, ids.userId, session)
+
     override fun toString(): String {
         return "Connection(id=$id, address=$address, userUuid=$userUuid)"
     }
@@ -28,6 +31,9 @@ class ConnectionSetSync {
     fun byUserId(userId: UUID) = connectionsByUserId[userId] ?: listOf()
 
     fun add(connection: Connection) {
+        if (connection.id in connections) {
+            throw IllegalStateException("Connection ${connection.id} already connected!")
+        }
         connections[connection.id] = connection
         connectionsByUserId.getOrPut(connection.userUuid) { mutableListOf() }.add(connection)
     }
