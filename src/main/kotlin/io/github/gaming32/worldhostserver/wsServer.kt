@@ -44,7 +44,7 @@ fun WorldHostServer.startWsServer() {
                     }
 
                 override suspend fun deserialize(charset: Charset, typeInfo: TypeInfo, content: Frame): Any =
-                    when (typeInfo.kotlinType) {
+                    when (typeInfo.type) {
                         IdsPair::class -> IdsPair(
                             content.buffer.uuid,
                             if (content.buffer.hasRemaining()) {
@@ -76,7 +76,7 @@ fun WorldHostServer.startWsServer() {
                 val remoteAddr = call.request.origin.remoteHost
                 val connection = Connection(
                     try {
-                        receiveDeserialized()
+                        receiveDeserialized<IdsPair>()
                     } catch (e: Exception) {
                         logger.warn("Invalid handshake from {}", remoteAddr, e)
                         close(CloseReason(CloseReason.Codes.PROTOCOL_ERROR, "Invalid handshake: $e"))
