@@ -8,11 +8,8 @@ import io.ktor.util.network.*
 import io.ktor.utils.io.*
 import io.ktor.utils.io.core.*
 import io.ktor.utils.io.streams.*
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.withLock
 import org.intellij.lang.annotations.Language
 import java.io.ByteArrayInputStream
@@ -79,7 +76,7 @@ fun WorldHostServer.startProxyServer() {
                             }.toByteArray()
                         ))
                         val buffer = ByteArray(24576)
-                        while (!sendChannel.isClosedForWrite) {
+                        proxyLoop@ while (!sendChannel.isClosedForWrite) {
                             if (!connection!!.open) {
                                 sendChannel.close()
                                 break
@@ -91,12 +88,15 @@ fun WorldHostServer.startProxyServer() {
                                 break
                             }
                             if (!connection.open) {
-                                delay(500)
-                                connection = wsConnections.byId(destUuid)
-                                if (connection == null || !connection.open) {
-                                    sendChannel.close()
-                                    break
-                                }
+                                val failureStart = System.currentTimeMillis()
+                                do {
+                                    if ((System.currentTimeMillis() - failureStart) > 5000) {
+                                        sendChannel.close()
+                                        break@proxyLoop
+                                    }
+                                    yield()
+                                    connection = wsConnections.byId(destUuid)
+                                } while (connection == null || !connection.open)
                             }
                             connection.session.sendSerialized(WorldHostS2CMessage.ProxyC2SPacket(
                                 connectionId, buffer.copyOf(n)
