@@ -108,10 +108,10 @@ fun WorldHostServer.startWsServer() {
                     return@webSocket
                 }
                 logger.info("There are {} open connections.", wsConnections.size)
-                sendSerialized(WorldHostS2CMessage.ConnectionInfo(
-                    connection.id, config.baseAddr ?: "", config.exJavaPort
-                ))
                 try {
+                    sendSerialized(WorldHostS2CMessage.ConnectionInfo(
+                        connection.id, config.baseAddr ?: "", config.exJavaPort
+                    ))
                     while (true) {
                         val message = try {
                             receiveDeserialized<WorldHostC2SMessage>()
