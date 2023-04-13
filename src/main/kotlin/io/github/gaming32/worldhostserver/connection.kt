@@ -30,12 +30,13 @@ class ConnectionSetSync {
 
     fun byUserId(userId: UUID) = connectionsByUserId[userId] ?: listOf()
 
-    fun add(connection: Connection) {
-        if (connection.id in connections) {
-            throw IllegalStateException("Connection ${connection.id} already connected!")
+    fun add(connection: Connection): Connection? {
+        val old = connections.put(connection.id, connection)
+        connectionsByUserId.getOrPut(connection.userUuid) { mutableListOf() }.apply {
+            remove(old)
+            add(connection)
         }
-        connections[connection.id] = connection
-        connectionsByUserId.getOrPut(connection.userUuid) { mutableListOf() }.add(connection)
+        return old
     }
 
     fun remove(connection: Connection) {

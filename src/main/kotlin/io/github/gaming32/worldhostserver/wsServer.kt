@@ -3,6 +3,7 @@ package io.github.gaming32.worldhostserver
 import io.github.oshai.KotlinLogging
 import io.ktor.client.call.*
 import io.ktor.client.request.*
+import io.ktor.http.*
 import io.ktor.serialization.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
@@ -70,7 +71,10 @@ fun WorldHostServer.startWsServer() {
         install(AutoHeadResponse)
         routing {
             get {
-                call.respondText("This server appears to be working!")
+                call.respondOutputStream(ContentType.defaultForFileExtension("html")) {
+                    WorldHostServer::class.java.getResourceAsStream("/index.html")?.copyTo(this)
+                        ?: writeString("This server is up but is missing index.html.")
+                }
             }
             webSocket {
                 val remoteAddr = call.request.origin.remoteHost
@@ -100,12 +104,9 @@ fun WorldHostServer.startWsServer() {
                     }
                     connection.country = countryCode
                 }
-                try {
-                    wsConnections.add(connection)
-                } catch (e: IllegalStateException) {
-                    logger.warn(e.localizedMessage, e)
-                    close(CloseReason(CloseReason.Codes.PROTOCOL_ERROR, "That connection ID is already taken!"))
-                    return@webSocket
+                wsConnections.add(connection)?.let {
+                    logger.warn("Connection $it and $connection conflict! Disconnecting $it.")
+                    it.session.close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Your connection was replaced."))
                 }
                 logger.info("There are {} open connections.", wsConnections.size)
                 try {
