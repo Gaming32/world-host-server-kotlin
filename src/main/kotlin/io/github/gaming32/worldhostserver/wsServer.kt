@@ -35,10 +35,15 @@ fun WorldHostServer.startWsServer() {
     val servletHandler = ServletContextHandler(ServletContextHandler.SESSIONS)
     servletHandler.contextPath = "/"
 
-    val servlet = DefaultServlet()
-    servletHandler.initParams["org.eclipse.jetty.servlet.Default.resourceBase"] =
-        WorldHostServer::class.java.classLoader.getResource("index.html")?.parentPath?.toExternalForm()
-    servletHandler.addServlet(ServletHolder(servlet), "/")
+    val indexUrl = WorldHostServer::class.java.classLoader.getResource("index.html")
+    if (indexUrl != null) {
+        val servlet = DefaultServlet()
+        indexUrl.parentPath.toExternalForm().let {
+            logger.info("Using resource base {}", it)
+            servletHandler.initParams["org.eclipse.jetty.servlet.Default.resourceBase"] = it
+        }
+        servletHandler.addServlet(ServletHolder(servlet), "/")
+    }
 
     server.handler = servletHandler
 

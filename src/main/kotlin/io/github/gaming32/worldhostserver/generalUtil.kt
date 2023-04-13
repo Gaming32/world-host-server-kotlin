@@ -29,6 +29,10 @@ inline fun <reified T> Any?.castOrNull() = this as? T
 
 fun launchAsync(block: suspend CoroutineScope.() -> Unit) = CoroutineScope(Dispatchers.Default).launch(block = block)
 
-val URL.parentPath get() = URL(protocol, host, port, file.parentPath)
+val URL.parentPath get() = URL(protocol, host, port, file.parentPathOrSlash)
 
-val String.parentPath get() = if (this == "/" || isEmpty()) this else substringBeforeLast('/').ifEmpty { "/" }
+val String.parentPathOrSlash get() = if (endsWith('/')) {
+    this
+} else {
+    substringBeforeLast('/', "") + '/'
+}
