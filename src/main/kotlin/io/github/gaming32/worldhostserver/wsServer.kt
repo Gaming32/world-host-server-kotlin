@@ -70,7 +70,7 @@ fun WorldHostServer.startWsServer() {
         )
     }
 
-    connector.port = config.port
+    connector.port = 9646
     server.start()
     if (config.baseAddr == null) {
         server.join()
