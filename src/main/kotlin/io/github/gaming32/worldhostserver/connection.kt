@@ -1,7 +1,5 @@
 package io.github.gaming32.worldhostserver
 
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import java.util.*
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -56,25 +54,6 @@ class ConnectionSetSync {
     inline fun forEach(action: (Connection) -> Unit) = connections.values.forEach(action)
 
     val size get() = connections.size
-}
-
-class ConnectionSetAsync {
-    @PublishedApi
-    internal val lock = Mutex()
-    @PublishedApi
-    internal val sync = ConnectionSetSync()
-
-    suspend fun byId(id: UUID) = lock.withLock { sync.byId(id) }
-
-    suspend fun byUserId(userId: UUID) = lock.withLock { sync.byUserId(userId) }
-
-    suspend fun add(connection: Connection) = lock.withLock { sync.add(connection) }
-
-    suspend fun remove(connection: Connection) = lock.withLock { sync.remove(connection) }
-
-    suspend inline fun forEach(action: (Connection) -> Unit) = lock.withLock { sync.forEach(action) }
-
-    val size get() = sync.size
 }
 
 class ConnectionSetConcurrent {

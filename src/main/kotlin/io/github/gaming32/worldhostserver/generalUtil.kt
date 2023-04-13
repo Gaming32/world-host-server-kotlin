@@ -19,10 +19,6 @@ object DurationArgType : ArgType<Duration>(true) {
             ?: throw ParsingException("Option $name is expected to be time duration. $value is provided.")
 }
 
-@Suppress("NOTHING_TO_INLINE")
-inline fun WebsocketConverterNotFoundException() =
-    io.ktor.serialization.WebsocketConverterNotFoundException("No converter was found for websocket")
-
 inline fun <reified T> Any?.cast() = this as T
 
 @Suppress("NOTHING_TO_INLINE", "UNCHECKED_CAST")
