@@ -1,23 +1,28 @@
 package io.github.gaming32.worldhostserver
 
-import io.ktor.server.websocket.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.*
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 data class Connection(
     val id: UUID,
     val address: String,
     val userUuid: UUID,
-    val session: WebSocketServerSession,
+    val session: WorldHostServerEndpoint,
     var country: String? = null,
     var open: Boolean = true
 ) {
-    constructor(ids: IdsPair, address: String, session: WebSocketServerSession) :
+    constructor(ids: IdsPair, address: String, session: WorldHostServerEndpoint) :
         this(ids.connectionId, address, ids.userId, session)
 
     override fun toString(): String {
         return "Connection(id=$id, address=$address, userUuid=$userUuid)"
+    }
+
+    fun send(message: WorldHostS2CMessage) {
+        session.session.asyncRemote.sendObject(message)
     }
 }
 
@@ -68,6 +73,25 @@ class ConnectionSetAsync {
     suspend fun remove(connection: Connection) = lock.withLock { sync.remove(connection) }
 
     suspend inline fun forEach(action: (Connection) -> Unit) = lock.withLock { sync.forEach(action) }
+
+    val size get() = sync.size
+}
+
+class ConnectionSetConcurrent {
+    @PublishedApi
+    internal val lock = ReentrantLock()
+    @PublishedApi
+    internal val sync = ConnectionSetSync()
+
+    fun byId(id: UUID) = lock.withLock { sync.byId(id) }
+
+    fun byUserId(userId: UUID) = lock.withLock { sync.byUserId(userId) }
+
+    fun add(connection: Connection) = lock.withLock { sync.add(connection) }
+
+    fun remove(connection: Connection) = lock.withLock { sync.remove(connection) }
+
+    inline fun forEach(action: (Connection) -> Unit) = lock.withLock { sync.forEach(action) }
 
     val size get() = sync.size
 }
