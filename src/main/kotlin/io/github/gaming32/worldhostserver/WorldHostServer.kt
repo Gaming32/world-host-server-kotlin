@@ -33,7 +33,7 @@ class WorldHostServer(val config: Config) {
         }
     }
 
-    val wsConnections = ConnectionSetConcurrent()
+    val wsConnections = ConnectionSetAsync()
 
     val proxyConnectionsLock = Mutex()
     val proxyConnections = mutableMapOf<Long, ByteWriteChannel>()

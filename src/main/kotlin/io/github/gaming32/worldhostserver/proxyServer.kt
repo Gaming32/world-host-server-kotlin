@@ -3,6 +3,7 @@ package io.github.gaming32.worldhostserver
 import io.github.oshai.KotlinLogging
 import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
+import io.ktor.server.websocket.*
 import io.ktor.util.network.*
 import io.ktor.utils.io.*
 import io.ktor.utils.io.core.*
@@ -63,11 +64,11 @@ fun WorldHostServer.startProxyServer() {
                         proxyConnectionsLock.withLock {
                             proxyConnections[connectionId] = sendChannel
                         }
-                        connection.send(WorldHostS2CMessage.ProxyConnect(
+                        connection.session.sendSerialized(WorldHostS2CMessage.ProxyConnect(
                             connectionId,
                             proxySocket.remoteAddress.toJavaAddress().cast<InetSocketAddress>().address
                         ))
-                        connection.send(WorldHostS2CMessage.ProxyC2SPacket(
+                        connection.session.sendSerialized(WorldHostS2CMessage.ProxyC2SPacket(
                             connectionId,
                             ByteArrayOutputStream().apply {
                                 writeVarInt(handshakeData.size)
@@ -97,7 +98,7 @@ fun WorldHostServer.startProxyServer() {
                                     connection = wsConnections.byId(destUuid)
                                 } while (connection == null || !connection.open)
                             }
-                            connection.send(WorldHostS2CMessage.ProxyC2SPacket(
+                            connection.session.sendSerialized(WorldHostS2CMessage.ProxyC2SPacket(
                                 connectionId, buffer.copyOf(n)
                             ))
                         }
@@ -109,7 +110,7 @@ fun WorldHostServer.startProxyServer() {
                             proxyConnections -= connectionId
                         }
                         if (connection?.open == true) {
-                            connection.send(WorldHostS2CMessage.ProxyDisconnect(connectionId))
+                            connection.session.sendSerialized(WorldHostS2CMessage.ProxyDisconnect(connectionId))
                         }
                         logger.info("Proxy connection closed")
                     }

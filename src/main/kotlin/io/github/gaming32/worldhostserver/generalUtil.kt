@@ -2,10 +2,6 @@ package io.github.gaming32.worldhostserver
 
 import kotlinx.cli.ArgType
 import kotlinx.cli.ParsingException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import java.net.URL
 import java.util.*
 import kotlin.time.Duration
 
@@ -25,14 +21,4 @@ inline fun WebsocketConverterNotFoundException() =
 
 inline fun <reified T> Any?.cast() = this as T
 
-@Suppress("NOTHING_TO_INLINE", "UNCHECKED_CAST")
-inline fun <T> Any?.uncheckedCast() = this as T
-
-
 inline fun <reified T> Any?.castOrNull() = this as? T
-
-fun launchAsync(block: suspend CoroutineScope.() -> Unit) = CoroutineScope(Dispatchers.Default).launch(block = block)
-
-val URL.parentPath get() = URL(protocol, host, port, file.parentPath)
-
-val String.parentPath get() = if (this == "/" || isEmpty()) this else substringBeforeLast('/').ifEmpty { "/" }
