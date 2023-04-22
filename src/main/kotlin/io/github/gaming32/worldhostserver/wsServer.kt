@@ -7,7 +7,7 @@ import io.ktor.http.*
 import io.ktor.serialization.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
-import io.ktor.server.jetty.*
+import io.ktor.server.netty.*
 import io.ktor.server.plugins.*
 import io.ktor.server.plugins.autohead.*
 import io.ktor.server.plugins.forwardedheaders.*
@@ -30,7 +30,7 @@ data class IdsPair(val userId: UUID, val connectionId: UUID)
 
 fun WorldHostServer.startWsServer() {
     logger.info("Starting WS server on port {}", config.port)
-    embeddedServer(Jetty, port = config.port) {
+    embeddedServer(Netty, port = config.port) {
         install(WebSockets) {
             timeoutMillis = Long.MAX_VALUE
             contentConverter = object : WebsocketContentConverter {

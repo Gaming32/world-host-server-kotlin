@@ -31,7 +31,7 @@ dependencies {
     implementation("io.github.oshai:kotlin-logging-jvm:4.0.0-beta-22")
 
     implementation("io.ktor:ktor-server-core:$ktorVersion")
-    implementation("io.ktor:ktor-server-jetty:$ktorVersion")
+    implementation("io.ktor:ktor-server-netty:$ktorVersion")
     implementation("io.ktor:ktor-server-websockets:$ktorVersion")
     implementation("io.ktor:ktor-network:$ktorVersion")
     implementation("io.ktor:ktor-client-core:$ktorVersion")
