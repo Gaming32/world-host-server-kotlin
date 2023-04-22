@@ -6,12 +6,10 @@ import io.ktor.client.request.*
 import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
 import io.ktor.util.network.*
-import io.ktor.utils.io.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import java.nio.ByteBuffer
 import java.util.*
 
 val SUPPORTED_PROTOCOLS = 2..2
@@ -24,6 +22,7 @@ fun WorldHostServer.startMainServer() {
     logger.info("Starting WH server on port {}", config.port)
     val coroutine: suspend CoroutineScope.() -> Unit = {
         aSocket(SelectorManager(Dispatchers.IO)).tcp().bind(port = config.port).use { serverSocket ->
+            logger.info("Started WH server on port {}", config.port)
             while (true) {
                 val clientSocket = serverSocket.accept()
                 launch {
@@ -117,11 +116,4 @@ fun WorldHostServer.startMainServer() {
         @OptIn(DelicateCoroutinesApi::class)
         GlobalScope.launch(block = coroutine)
     }
-}
-
-suspend fun ByteWriteChannel.sendMessage(message: WorldHostS2CMessage) {
-    val size = message.encodedSize()
-    writeInt(size)
-    writeFully(message.encode(ByteBuffer.allocate(size)))
-    flush()
 }
