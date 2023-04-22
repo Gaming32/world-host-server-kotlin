@@ -87,6 +87,7 @@ fun WorldHostServer.startMainServer() {
                                     // It was critical enough to close for
                                     throw e
                                 }
+                                logger.error("Error in client WH client handling", e)
                                 socket.sendMessage(WorldHostS2CMessage.Error(e.message ?: e.javaClass.simpleName))
                                 continue
                             }
@@ -98,7 +99,7 @@ fun WorldHostServer.startMainServer() {
                             }
                         }
                     } catch (e: Exception) {
-                        logger.error("An error occurred in WS client handling", e)
+                        logger.error("A critical error occurred in WH client handling", e)
                     } finally {
                         socket.close()
                         connection.open = false

@@ -33,7 +33,13 @@ class SocketWrapper(val socket: Socket) {
             readChannel.discardExact(size.toLong())
             throw IllegalArgumentException("Messages bigger than 16 MB are currently not allowed. We are working to remove this restriction.")
         }
-        WorldHostC2SMessage.decode(ByteBuffer.allocate(size).also { readChannel.readFully(it) })
+        val bb = ByteBuffer.allocate(size)
+        val read = readChannel.readFully(bb)
+        if (read != size) {
+            throw IllegalStateException("Mismatch in packet size! Expected $size, read $read.")
+        }
+        bb.flip()
+        WorldHostC2SMessage.decode(bb)
     }
 
     suspend fun close() = lock.withLock { writeChannel.close() }
