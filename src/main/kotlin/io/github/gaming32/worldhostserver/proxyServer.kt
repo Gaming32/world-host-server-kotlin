@@ -54,7 +54,7 @@ fun WorldHostServer.startProxyServer() {
                                 // Star Trek humor
                                 return@launch disconnect(sendChannel, nextState, "I'm a proxy server, not an engineer!")
                             }
-                            return@launch disconnect(sendChannel, nextState, "Invalid ConnectionId: $cidStr")
+                            return@launch disconnect(sendChannel, nextState, "Invalid ConnectionId: ${e.localizedMessage}")
                         }
 
                         connection = whConnections.byId(destCid) ?:

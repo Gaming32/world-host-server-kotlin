@@ -12,16 +12,17 @@ private val logger = KotlinLogging.logger {}
 class SocketWrapper(val socket: Socket) {
     val readChannel = socket.openReadChannel()
     val writeChannel = socket.openWriteChannel()
-    val lock = Mutex()
+    private val sendLock = Mutex()
+    private val recvLock = Mutex()
 
-    suspend fun sendMessage(message: WorldHostS2CMessage) = lock.withLock {
+    suspend fun sendMessage(message: WorldHostS2CMessage) = sendLock.withLock {
         val size = message.encodedSize()
         writeChannel.writeInt(size)
-        writeChannel.writeFully(message.encode(ByteBuffer.allocate(size)))
+        writeChannel.writeFully(message.encode(ByteBuffer.allocate(size)).flip())
         writeChannel.flush()
     }
 
-    suspend fun recvMessage() = lock.withLock {
+    suspend fun recvMessage() = recvLock.withLock {
         val size = readChannel.readInt()
         if (size < 0) {
             "Message size is less than 0".let {
@@ -42,15 +43,14 @@ class SocketWrapper(val socket: Socket) {
         WorldHostC2SMessage.decode(bb)
     }
 
-    suspend fun close() = lock.withLock { writeChannel.close() }
+    fun close() = writeChannel.close()
 
-    suspend fun closeError(message: String) = lock.withLock {
+    suspend fun closeError(message: String) {
         try {
             sendMessage(WorldHostS2CMessage.Error(message))
         } catch (e: Exception) {
             logger.warn("Error in error sending (message \"{}\")", message, e)
         }
         close()
-        Unit
     }
 }

@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "io.github.gaming32"
-version = "0.1"
+version = "0.3"
 
 val ktorVersion = "2.2.4"
 

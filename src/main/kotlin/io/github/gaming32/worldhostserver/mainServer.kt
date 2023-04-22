@@ -74,7 +74,7 @@ fun WorldHostServer.startMainServer() {
 
                     try {
                         socket.sendMessage(WorldHostS2CMessage.ConnectionInfo(
-                            connection.id, config.baseAddr ?: "", config.exJavaPort
+                            connection.id, config.baseAddr ?: "", config.exJavaPort, remoteAddr
                         ))
 
                         while (true) {
