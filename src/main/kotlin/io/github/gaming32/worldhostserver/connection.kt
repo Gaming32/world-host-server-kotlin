@@ -1,19 +1,18 @@
 package io.github.gaming32.worldhostserver
 
-import io.ktor.server.websocket.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.*
 
 data class Connection(
-    val id: UUID,
+    val id: ConnectionId,
     val address: String,
     val userUuid: UUID,
-    val session: WebSocketServerSession,
+    val socket: SocketWrapper,
     var country: String? = null,
     var open: Boolean = true
 ) {
-    constructor(ids: IdsPair, address: String, session: WebSocketServerSession) :
+    constructor(ids: IdsPair, address: String, session: SocketWrapper) :
         this(ids.connectionId, address, ids.userId, session)
 
     override fun toString(): String {
@@ -23,10 +22,10 @@ data class Connection(
 
 class ConnectionSetSync {
     @PublishedApi
-    internal val connections = mutableMapOf<UUID, Connection>()
+    internal val connections = mutableMapOf<ConnectionId, Connection>()
     private val connectionsByUserId = mutableMapOf<UUID, MutableList<Connection>>()
 
-    fun byId(id: UUID) = connections[id]
+    fun byId(id: ConnectionId) = connections[id]
 
     fun byUserId(userId: UUID) = connectionsByUserId[userId] ?: listOf()
 
@@ -41,10 +40,10 @@ class ConnectionSetSync {
 
     fun remove(connection: Connection) {
         connections.remove(connection.id)
-        connectionsByUserId[connection.id]?.let {
+        connectionsByUserId[connection.userUuid]?.let {
             it.remove(connection)
             if (it.isEmpty()) {
-                connectionsByUserId.remove(connection.id)
+                connectionsByUserId.remove(connection.userUuid)
             }
         }
     }
@@ -60,7 +59,7 @@ class ConnectionSetAsync {
     @PublishedApi
     internal val sync = ConnectionSetSync()
 
-    suspend fun byId(id: UUID) = lock.withLock { sync.byId(id) }
+    suspend fun byId(id: ConnectionId) = lock.withLock { sync.byId(id) }
 
     suspend fun byUserId(userId: UUID) = lock.withLock { sync.byUserId(userId) }
 

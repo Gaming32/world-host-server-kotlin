@@ -30,16 +30,11 @@ dependencies {
     implementation("org.apache.logging.log4j:log4j-core:2.19.0")
     implementation("io.github.oshai:kotlin-logging-jvm:4.0.0-beta-22")
 
-    implementation("io.ktor:ktor-server-core:$ktorVersion")
-    implementation("io.ktor:ktor-server-netty:$ktorVersion")
-    implementation("io.ktor:ktor-server-websockets:$ktorVersion")
     implementation("io.ktor:ktor-network:$ktorVersion")
     implementation("io.ktor:ktor-client-core:$ktorVersion")
     implementation("io.ktor:ktor-client-java:$ktorVersion")
     implementation("io.ktor:ktor-client-content-negotiation:$ktorVersion")
     implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
-    implementation("io.ktor:ktor-server-forwarded-header:$ktorVersion")
-    implementation("io.ktor:ktor-server-auto-head-response:$ktorVersion")
 
     implementation("org.jetbrains.kotlinx:kotlinx-cli:0.3.5")
 }
@@ -55,5 +50,11 @@ kotlin {
 tasks {
     shadowJar {
         mergeServiceFiles()
+    }
+
+    compileKotlin {
+        compilerOptions {
+            freeCompilerArgs.add("-opt-in=kotlin.ExperimentalStdlibApi")
+        }
     }
 }

@@ -1,9 +1,9 @@
 package io.github.gaming32.worldhostserver
 
+import io.github.gaming32.worldhostserver.ConnectionId.Companion.toConnectionId
 import io.github.oshai.KotlinLogging
 import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
-import io.ktor.server.websocket.*
 import io.ktor.util.network.*
 import io.ktor.utils.io.*
 import io.ktor.utils.io.core.*
@@ -46,29 +46,28 @@ fun WorldHostServer.startProxyServer() {
                         inp.skip(2) // Port
                         val nextState = inp.readVarInt()
 
-                        if (!thisAddr.startsWith(PROXY_SERVER_PREFIX)) {
-                            // Star Trek humor
-                            return@launch disconnect(sendChannel, nextState, "I'm a proxy server, not an engineer!")
-                        }
-
-                        val uuidStr = thisAddr.substring(PROXY_SERVER_PREFIX.length).substringBefore('.')
-                        val destUuid = try {
-                            UUID.fromString(uuidStr)
+                        val cidStr = thisAddr.substringBefore('.')
+                        val destCid = try {
+                            cidStr.toConnectionId()
                         } catch (e: Exception) {
-                            return@launch disconnect(sendChannel, nextState, "Invalid UUID: $uuidStr")
+                            if (!thisAddr.endsWith(config.baseAddr)) {
+                                // Star Trek humor
+                                return@launch disconnect(sendChannel, nextState, "I'm a proxy server, not an engineer!")
+                            }
+                            return@launch disconnect(sendChannel, nextState, "Invalid ConnectionId: $cidStr")
                         }
 
-                        connection = wsConnections.byId(destUuid) ?:
+                        connection = whConnections.byId(destCid) ?:
                             return@launch disconnect(sendChannel, nextState, "Couldn't find that server")
 
                         proxyConnectionsLock.withLock {
                             proxyConnections[connectionId] = sendChannel
                         }
-                        connection.session.sendSerialized(WorldHostS2CMessage.ProxyConnect(
+                        connection.socket.sendMessage(WorldHostS2CMessage.ProxyConnect(
                             connectionId,
                             proxySocket.remoteAddress.toJavaAddress().cast<InetSocketAddress>().address
                         ))
-                        connection.session.sendSerialized(WorldHostS2CMessage.ProxyC2SPacket(
+                        connection.socket.sendMessage(WorldHostS2CMessage.ProxyC2SPacket(
                             connectionId,
                             ByteArrayOutputStream().apply {
                                 writeVarInt(handshakeData.size)
@@ -95,10 +94,10 @@ fun WorldHostServer.startProxyServer() {
                                         break@proxyLoop
                                     }
                                     yield()
-                                    connection = wsConnections.byId(destUuid)
+                                    connection = whConnections.byId(destCid)
                                 } while (connection == null || !connection.open)
                             }
-                            connection.session.sendSerialized(WorldHostS2CMessage.ProxyC2SPacket(
+                            connection.socket.sendMessage(WorldHostS2CMessage.ProxyC2SPacket(
                                 connectionId, buffer.copyOf(n)
                             ))
                         }
@@ -110,7 +109,7 @@ fun WorldHostServer.startProxyServer() {
                             proxyConnections -= connectionId
                         }
                         if (connection?.open == true) {
-                            connection.session.sendSerialized(WorldHostS2CMessage.ProxyDisconnect(connectionId))
+                            connection.socket.sendMessage(WorldHostS2CMessage.ProxyDisconnect(connectionId))
                         }
                         logger.info("Proxy connection closed")
                     }
