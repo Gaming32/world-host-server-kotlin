@@ -14,14 +14,14 @@ class SocketWrapper(val socket: Socket) {
     val writeChannel = socket.openWriteChannel()
     val lock = Mutex()
 
-    suspend fun sendMessage(message: WorldHostS2CMessage) = lock.withLock(this) {
+    suspend fun sendMessage(message: WorldHostS2CMessage) = lock.withLock {
         val size = message.encodedSize()
         writeChannel.writeInt(size)
         writeChannel.writeFully(message.encode(ByteBuffer.allocate(size)))
         writeChannel.flush()
     }
 
-    suspend fun recvMessage() = lock.withLock(this) {
+    suspend fun recvMessage() = lock.withLock {
         val size = readChannel.readInt()
         if (size < 0) {
             "Message size is less than 0".let {
@@ -36,9 +36,9 @@ class SocketWrapper(val socket: Socket) {
         WorldHostC2SMessage.decode(ByteBuffer.allocate(size).also { readChannel.readFully(it) })
     }
 
-    suspend fun close() = lock.withLock(this) { writeChannel.close() }
+    suspend fun close() = lock.withLock { writeChannel.close() }
 
-    suspend fun closeError(message: String) = lock.withLock(this) {
+    suspend fun closeError(message: String) = lock.withLock {
         try {
             sendMessage(WorldHostS2CMessage.Error(message))
         } catch (e: Exception) {
