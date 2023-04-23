@@ -27,52 +27,53 @@ fun WorldHostServer.startMainServer() {
                 val clientSocket = serverSocket.accept()
                 launch {
                     val socket = SocketWrapper(clientSocket)
-
-                    val remoteAddr = clientSocket.remoteAddress.toJavaAddress().address
-                    val protocolVersion = socket.readChannel.readInt()
-
-                    if (protocolVersion !in SUPPORTED_PROTOCOLS) {
-                        return@launch socket.closeError("Unsupported protocol version $protocolVersion")
-                    }
-
-                    val connection = try {
-                        Connection(
-                            IdsPair(
-                                UUID(socket.readChannel.readLong(), socket.readChannel.readLong()),
-                                ConnectionId(socket.readChannel.readLong())
-                            ),
-                            remoteAddr, socket
-                        )
-                    } catch (e: Exception) {
-                        logger.warn("Invalid handshake from {}", remoteAddr, e)
-                        return@launch socket.closeError("Invalid handshake: $e")
-                    }
-
-                    logger.info("Connection opened: {}", connection)
-                    launch requestCountry@ {
-                        val jsonResponse: JsonObject = httpClient.get("https://api.iplocation.net/") {
-                            parameter("ip", connection.address)
-                        }.body()
-                        val countryCode = jsonResponse["country_code2"].castOrNull<JsonPrimitive>()?.content
-                        if (countryCode == null) {
-                            logger.warn("No country code returned")
-                            return@requestCountry
-                        }
-                        if (countryCode !in VALID_COUNTRY_CODES) {
-                            logger.warn("Invalid country code {}", countryCode)
-                            return@requestCountry
-                        }
-                        connection.country = countryCode
-                    }
-
-                    whConnections.add(connection)?.let {
-                        logger.warn("Connection $it and $connection conflict! Disconnecting $it.")
-                        it.socket.closeError("Your connection was replaced.")
-                    }
-
-                    logger.info("There are {} open connections.", whConnections.size)
-
+                    var connection: Connection? = null
                     try {
+                        val remoteAddr = clientSocket.remoteAddress.toJavaAddress().address
+                        val protocolVersion = socket.readChannel.readInt()
+
+                        if (protocolVersion !in SUPPORTED_PROTOCOLS) {
+                            return@launch socket.closeError("Unsupported protocol version $protocolVersion")
+                        }
+
+                        @Suppress("UNNECESSARY_NOT_NULL_ASSERTION") // I have several questions
+                        connection = try {
+                            Connection(
+                                IdsPair(
+                                    UUID(socket.readChannel.readLong(), socket.readChannel.readLong()),
+                                    ConnectionId(socket.readChannel.readLong())
+                                ),
+                                remoteAddr, socket
+                            )
+                        } catch (e: Exception) {
+                            logger.warn("Invalid handshake from {}", remoteAddr, e)
+                            return@launch socket.closeError("Invalid handshake: $e")
+                        }!!
+
+                        logger.info("Connection opened: {}", connection)
+                        launch requestCountry@ {
+                            val jsonResponse: JsonObject = httpClient.get("https://api.iplocation.net/") {
+                                parameter("ip", connection.address)
+                            }.body()
+                            val countryCode = jsonResponse["country_code2"].castOrNull<JsonPrimitive>()?.content
+                            if (countryCode == null) {
+                                logger.warn("No country code returned")
+                                return@requestCountry
+                            }
+                            if (countryCode !in VALID_COUNTRY_CODES) {
+                                logger.warn("Invalid country code {}", countryCode)
+                                return@requestCountry
+                            }
+                            connection.country = countryCode
+                        }
+
+                        whConnections.add(connection)?.let {
+                            logger.warn("Connection $it and $connection conflict! Disconnecting $it.")
+                            it.socket.closeError("Your connection was replaced.")
+                        }
+
+                        logger.info("There are {} open connections.", whConnections.size)
+
                         socket.sendMessage(WorldHostS2CMessage.ConnectionInfo(
                             connection.id, config.baseAddr ?: "", config.exJavaPort, remoteAddr
                         ))
@@ -102,10 +103,12 @@ fun WorldHostServer.startMainServer() {
                         logger.error("A critical error occurred in WH client handling", e)
                     } finally {
                         socket.close()
-                        connection.open = false
-                        logger.info("Connection closed: {}", connection)
-                        whConnections.remove(connection)
-                        logger.info("There are {} open connections.", whConnections.size)
+                        if (connection != null) {
+                            connection.open = false
+                            logger.info("Connection closed: {}", connection)
+                            whConnections.remove(connection)
+                            logger.info("There are {} open connections.", whConnections.size)
+                        }
                     }
                 }
             }
