@@ -5,8 +5,6 @@ import kotlinx.cli.ArgType
 import kotlinx.cli.default
 import kotlin.time.Duration.Companion.minutes
 
-const val PROXY_SERVER_PREFIX = "connect0000-"
-
 fun main(args: Array<String>) {
     val parser = ArgParser("world-host-server")
 

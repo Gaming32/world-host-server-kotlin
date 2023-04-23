@@ -45,16 +45,16 @@ sealed interface WorldHostS2CMessage {
         override fun encodedSize() = 1 + 16
     }
 
-    data class RequestJoin(val user: UUID, val connectionId: UUID) : WorldHostS2CMessage {
-        override fun encode(buf: ByteBuffer) = buf.put(6).putUuid(user).putUuid(connectionId)
+    data class RequestJoin(val user: UUID, val connectionId: ConnectionId) : WorldHostS2CMessage {
+        override fun encode(buf: ByteBuffer) = buf.put(6).putUuid(user).putCid(connectionId)
 
-        override fun encodedSize() = 1 + 16 + 16
+        override fun encodedSize() = 1 + 16 + 8
     }
 
-    data class QueryRequest(val friend: UUID, val connectionId: UUID) : WorldHostS2CMessage {
-        override fun encode(buf: ByteBuffer) = buf.put(7).putUuid(friend).putUuid(connectionId)
+    data class QueryRequest(val friend: UUID, val connectionId: ConnectionId) : WorldHostS2CMessage {
+        override fun encode(buf: ByteBuffer) = buf.put(7).putUuid(friend).putCid(connectionId)
 
-        override fun encodedSize() = 1 + 16 + 16
+        override fun encodedSize() = 1 + 16 + 8
     }
 
     data class QueryResponse(val friend: UUID, val data: ByteArray) : WorldHostS2CMessage {
@@ -69,9 +69,7 @@ sealed interface WorldHostS2CMessage {
             other as QueryResponse
 
             if (friend != other.friend) return false
-            if (!data.contentEquals(other.data)) return false
-
-            return true
+            return data.contentEquals(other.data)
         }
 
         override fun hashCode(): Int {
@@ -93,9 +91,7 @@ sealed interface WorldHostS2CMessage {
             other as ProxyC2SPacket
 
             if (connectionId != other.connectionId) return false
-            if (!data.contentEquals(other.data)) return false
-
-            return true
+            return data.contentEquals(other.data)
         }
 
         override fun hashCode(): Int {
@@ -120,10 +116,15 @@ sealed interface WorldHostS2CMessage {
         override fun encodedSize() = 1 + 8
     }
 
-    data class ConnectionInfo(val connectionId: UUID, val baseIp: String, val basePort: Int) : WorldHostS2CMessage {
+    data class ConnectionInfo(
+        val connectionId: ConnectionId,
+        val baseIp: String,
+        val basePort: Int,
+        val userIp: String
+    ) : WorldHostS2CMessage {
         override fun encode(buf: ByteBuffer): ByteBuffer =
-            buf.put(12).putUuid(connectionId).putString(baseIp).putShort(basePort.toShort())
+            buf.put(12).putCid(connectionId).putString(baseIp).putShort(basePort.toShort()).putString(userIp)
 
-        override fun encodedSize() = 1 + 16 + 2 + baseIp.length + 2
+        override fun encodedSize() = 1 + 8 + 2 + baseIp.length + 2 + 2 + userIp.length
     }
 }
