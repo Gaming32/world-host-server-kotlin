@@ -50,7 +50,7 @@ fun WorldHostServer.startProxyServer() {
                         val destCid = try {
                             cidStr.toConnectionId()
                         } catch (e: Exception) {
-                            if (!thisAddr.endsWith(config.baseAddr)) {
+                            if (thisAddr == config.baseAddr) {
                                 // Star Trek humor
                                 return@launch disconnect(sendChannel, nextState, "I'm a proxy server, not an engineer!")
                             }
