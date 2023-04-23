@@ -74,7 +74,7 @@ fun WorldHostServer.startProxyServer() {
                                 write(handshakeData)
                             }.toByteArray()
                         ))
-                        val buffer = ByteArray(24576)
+                        val buffer = ByteArray(64 * 1024)
                         proxyLoop@ while (!sendChannel.isClosedForWrite) {
                             if (!connection!!.open) {
                                 sendChannel.close()
