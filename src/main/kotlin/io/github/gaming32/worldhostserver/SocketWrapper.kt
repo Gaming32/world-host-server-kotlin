@@ -30,9 +30,9 @@ class SocketWrapper(val socket: Socket) {
                 throw IllegalArgumentException(it)
             }
         }
-        if (size > 16 * 1024 * 1024) {
+        if (size > 72 * 1024) {
             readChannel.discardExact(size.toLong())
-            throw IllegalArgumentException("Messages bigger than 16 MB are currently not allowed. We are working to remove this restriction.")
+            throw IllegalArgumentException("Messages bigger than 72 KB are now allowed.")
         }
         val bb = ByteBuffer.allocate(size)
         val read = readChannel.readFully(bb)
