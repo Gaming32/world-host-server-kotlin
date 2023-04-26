@@ -22,7 +22,7 @@ fun WorldHostServer.startMainServer() {
     logger.info("Starting WH server on port {}", config.port)
     val coroutine: suspend CoroutineScope.() -> Unit = {
         aSocket(SelectorManager(Dispatchers.IO)).tcp().bind(port = config.port).use { serverSocket ->
-            logger.info("Started WH server on port {}", config.port)
+            logger.info("Started WH server on {}", serverSocket.localAddress)
             while (true) {
                 val clientSocket = serverSocket.accept()
                 launch {
