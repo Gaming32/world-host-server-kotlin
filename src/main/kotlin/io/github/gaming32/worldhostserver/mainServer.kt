@@ -8,11 +8,22 @@ import io.ktor.network.sockets.*
 import io.ktor.util.network.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.decodeFromStream
+import java.io.File
 import java.util.*
 
-val SUPPORTED_PROTOCOLS = 2..2
+const val PROTOCOL_VERSION = 3
+val SUPPORTED_PROTOCOLS = 2..PROTOCOL_VERSION
+
+@OptIn(ExperimentalSerializationApi::class)
+val EXTERNAL_SERVERS = File("external_proxies.json")
+    .let { if (it.exists()) it else null }
+    ?.inputStream()
+    ?.let { Json.decodeFromStream<List<ExternalProxy>>(it) }
 
 private val logger = KotlinLogging.logger {}
 
@@ -56,15 +67,21 @@ fun WorldHostServer.startMainServer() {
                                 parameter("ip", connection.address)
                             }.body()
                             val countryCode = jsonResponse["country_code2"].castOrNull<JsonPrimitive>()?.content
-                            if (countryCode == null) {
-                                logger.warn("No country code returned")
-                                return@requestCountry
+                                ?: return@requestCountry logger.warn("No country code returned for {}", connection.id)
+                            if (countryCode == "-") {
+                                return@requestCountry logger.info("{} not in a country", connection.id)
                             }
-                            if (countryCode !in VALID_COUNTRY_CODES) {
-                                logger.warn("Invalid country code {}", countryCode)
-                                return@requestCountry
-                            }
-                            connection.country = countryCode
+                            val country = COUNTRIES[countryCode]
+                                ?: return@requestCountry logger.warn(
+                                    "Invalid country code {} for {}", countryCode, connection.id
+                                )
+                            connection.country = country
+                            EXTERNAL_SERVERS
+                                ?.minBy { it.latLong.haversineDistance(country.latLong) }
+                                ?.let { proxy ->
+                                    connection.externalProxy = proxy
+                                    socket.sendMessage(WorldHostS2CMessage.ExternalProxyServer(proxy.baseAddr))
+                                }
                         }
 
                         whConnections.add(connection)?.let {
@@ -75,7 +92,7 @@ fun WorldHostServer.startMainServer() {
                         logger.info("There are {} open connections.", whConnections.size)
 
                         socket.sendMessage(WorldHostS2CMessage.ConnectionInfo(
-                            connection.id, config.baseAddr ?: "", config.exJavaPort, remoteAddr
+                            connection.id, config.baseAddr ?: "", config.exJavaPort, remoteAddr, PROTOCOL_VERSION
                         ))
 
                         while (true) {

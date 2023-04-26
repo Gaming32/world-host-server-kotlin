@@ -9,7 +9,8 @@ data class Connection(
     val address: String,
     val userUuid: UUID,
     val socket: SocketWrapper,
-    var country: String? = null,
+    var country: Country? = null,
+    var externalProxy: ExternalProxy? = null,
     var open: Boolean = true
 ) {
     constructor(ids: IdsPair, address: String, session: SocketWrapper) :

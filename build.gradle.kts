@@ -1,6 +1,7 @@
 plugins {
     application
-    kotlin("jvm") version "1.8.10"
+    kotlin("jvm") version "1.8.21"
+    kotlin("plugin.serialization") version "1.8.21"
     id("io.ktor.plugin") version "2.1.1" // It builds fat JARs
     id("net.kyori.blossom") version "1.3.1"
 }

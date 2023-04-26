@@ -3,7 +3,16 @@ package io.github.gaming32.worldhostserver
 import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
 import kotlinx.cli.default
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromStream
 import kotlin.time.Duration.Companion.minutes
+
+@OptIn(ExperimentalSerializationApi::class)
+val COUNTRIES = WorldHostServer::class.java.getResourceAsStream("/countries.json")
+    ?.let { Json.decodeFromStream<List<Country>>(it) }
+    ?.associateBy { it.code }
+    ?: throw IllegalStateException("Missing countries.json")
 
 fun main(args: Array<String>) {
     val parser = ArgParser("world-host-server")
