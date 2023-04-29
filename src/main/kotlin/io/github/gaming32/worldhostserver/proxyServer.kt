@@ -61,7 +61,7 @@ fun WorldHostServer.startProxyServer() {
                             return@launch disconnect(sendChannel, nextState, "Couldn't find that server")
 
                         proxyConnectionsLock.withLock {
-                            proxyConnections[connectionId] = sendChannel
+                            proxyConnections[connectionId] = Pair(connection!!.id, sendChannel)
                         }
                         connection.socket.sendMessage(WorldHostS2CMessage.ProxyConnect(
                             connectionId,

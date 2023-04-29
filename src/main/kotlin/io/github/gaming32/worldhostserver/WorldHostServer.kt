@@ -36,7 +36,7 @@ class WorldHostServer(val config: Config) {
     val whConnections = ConnectionSetAsync()
 
     val proxyConnectionsLock = Mutex()
-    val proxyConnections = mutableMapOf<Long, ByteWriteChannel>()
+    val proxyConnections = mutableMapOf<Long, Pair<ConnectionId, ByteWriteChannel>>()
 
     fun start() {
         logger.info("Starting world-host-server $SERVER_VERSION with {}", config)

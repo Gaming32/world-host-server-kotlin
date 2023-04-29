@@ -28,10 +28,7 @@ sealed interface WorldHostC2SMessage {
     )
 
     data class ListOnline(val friends: Collection<UUID>) : WorldHostC2SMessage {
-        override suspend fun CoroutineScope.handle(
-            server: WorldHostServer,
-            connection: Connection
-        ) {
+        override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
             val response = WorldHostS2CMessage.IsOnlineTo(connection.userUuid)
             for (friend in friends) {
                 for (other in server.whConnections.byUserId(friend)) {
@@ -43,10 +40,7 @@ sealed interface WorldHostC2SMessage {
     }
 
     data class FriendRequest(val toUser: UUID) : WorldHostC2SMessage {
-        override suspend fun CoroutineScope.handle(
-            server: WorldHostServer,
-            connection: Connection
-        ) {
+        override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
             val response = WorldHostS2CMessage.FriendRequest(connection.userUuid)
             for (other in server.whConnections.byUserId(toUser)) {
                 if (other.id == connection.id) continue
@@ -56,10 +50,7 @@ sealed interface WorldHostC2SMessage {
     }
 
     data class PublishedWorld(val friends: Collection<UUID>) : WorldHostC2SMessage {
-        override suspend fun CoroutineScope.handle(
-            server: WorldHostServer,
-            connection: Connection
-        ) {
+        override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
             val response = WorldHostS2CMessage.PublishedWorld(connection.userUuid)
             for (friend in friends) {
                 for (other in server.whConnections.byUserId(friend)) {
@@ -71,10 +62,7 @@ sealed interface WorldHostC2SMessage {
     }
 
     data class ClosedWorld(val friends: Collection<UUID>) : WorldHostC2SMessage {
-        override suspend fun CoroutineScope.handle(
-            server: WorldHostServer,
-            connection: Connection
-        ) {
+        override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
             val response = WorldHostS2CMessage.ClosedWorld(connection.userUuid)
             for (friend in friends) {
                 for (other in server.whConnections.byUserId(friend)) {
@@ -86,10 +74,7 @@ sealed interface WorldHostC2SMessage {
     }
 
     data class RequestJoin(val friend: UUID) : WorldHostC2SMessage {
-        override suspend fun CoroutineScope.handle(
-            server: WorldHostServer,
-            connection: Connection
-        ) {
+        override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
             val response = WorldHostS2CMessage.RequestJoin(connection.userUuid, connection.id)
             server.whConnections.byUserId(friend)
                 .lastOrNull()
@@ -100,10 +85,7 @@ sealed interface WorldHostC2SMessage {
     }
 
     data class JoinGranted(val connectionId: ConnectionId, val joinType: JoinType) : WorldHostC2SMessage {
-        override suspend fun CoroutineScope.handle(
-            server: WorldHostServer,
-            connection: Connection
-        ) {
+        override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
             val response = joinType.toOnlineGame(connection, server.config)
                 ?: return connection.socket.sendMessage(
                     WorldHostS2CMessage.Error("This server does not support JoinType $joinType")
@@ -114,10 +96,7 @@ sealed interface WorldHostC2SMessage {
     }
 
     data class QueryRequest(val friends: Collection<UUID>) : WorldHostC2SMessage {
-        override suspend fun CoroutineScope.handle(
-            server: WorldHostServer,
-            connection: Connection
-        ) {
+        override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
             val response = WorldHostS2CMessage.QueryRequest(connection.userUuid, connection.id)
             for (friend in friends) {
                 for (other in server.whConnections.byUserId(friend)) {
@@ -129,10 +108,7 @@ sealed interface WorldHostC2SMessage {
     }
 
     data class QueryResponse(val connectionId: ConnectionId, val data: ByteArray) : WorldHostC2SMessage {
-        override suspend fun CoroutineScope.handle(
-            server: WorldHostServer,
-            connection: Connection
-        ) {
+        override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
             val response = WorldHostS2CMessage.QueryResponse(connection.userUuid, data)
             if (connectionId == connection.id) return
             server.whConnections.byId(connectionId)?.socket?.sendMessage(response)
@@ -156,13 +132,12 @@ sealed interface WorldHostC2SMessage {
     }
 
     data class ProxyS2CPacket(val connectionId: Long, val data: ByteArray) : WorldHostC2SMessage {
-        override suspend fun CoroutineScope.handle(
-            server: WorldHostServer,
-            connection: Connection
-        ) {
-            server.proxyConnections[connectionId]?.apply {
-                writeFully(data)
-                flush()
+        override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
+            server.proxyConnections[connectionId]?.let { (cid, channel) ->
+                if (cid == connection.id) {
+                    channel.writeFully(data)
+                    channel.flush()
+                }
             }
         }
 
@@ -185,7 +160,11 @@ sealed interface WorldHostC2SMessage {
 
     data class ProxyDisconnect(val connectionId: Long) : WorldHostC2SMessage {
         override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
-            server.proxyConnections[connectionId]?.close()
+            server.proxyConnections[connectionId]?.let { (cid, channel) ->
+                if (cid == connection.id) {
+                    channel.close()
+                }
+            }
         }
     }
 }
