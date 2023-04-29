@@ -20,6 +20,6 @@ data class Country(
 
 @Serializable
 data class ExternalProxy(
-    val baseAddr: String,
+    val addr: String,
     val latLong: LatitudeLongitude
 )

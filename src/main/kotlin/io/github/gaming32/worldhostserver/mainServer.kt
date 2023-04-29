@@ -80,7 +80,7 @@ fun WorldHostServer.startMainServer() {
                                 ?.minBy { it.latLong.haversineDistance(country.latLong) }
                                 ?.let { proxy ->
                                     connection.externalProxy = proxy
-                                    socket.sendMessage(WorldHostS2CMessage.ExternalProxyServer(proxy.baseAddr))
+                                    socket.sendMessage(WorldHostS2CMessage.ExternalProxyServer(proxy.addr))
                                 }
                         }
 
