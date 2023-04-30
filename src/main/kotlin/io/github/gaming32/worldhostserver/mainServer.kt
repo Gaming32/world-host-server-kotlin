@@ -63,16 +63,8 @@ suspend fun WorldHostServer.startMainServer() = coroutineScope {
                         return@launch socket.closeError("Invalid handshake: $e")
                     }!!
 
-                    val start = System.currentTimeMillis()
-                    while (!whConnections.add(connection)) {
-                        val time = System.currentTimeMillis()
-                        if (time - start > 500) {
-                            logger.warn("ID ${connection.id} used twice. Disconnecting $connection.")
-                            return@launch socket.closeError("That connection ID is taken.")
-                        }
-                    }
-
                     logger.info("Connection opened: {}", connection)
+
                     launch requestCountry@ {
                         val jsonResponse: JsonObject = httpClient.get("https://api.iplocation.net/") {
                             parameter("ip", connection.address)
@@ -95,6 +87,15 @@ suspend fun WorldHostServer.startMainServer() = coroutineScope {
                                     proxy.addr, proxy.port, proxy.baseAddr, proxy.mcPort
                                 ))
                             }
+                    }
+
+                    val start = System.currentTimeMillis()
+                    while (!whConnections.add(connection)) {
+                        val time = System.currentTimeMillis()
+                        if (time - start > 500) {
+                            logger.warn("ID ${connection.id} used twice. Disconnecting $connection.")
+                            return@launch socket.closeError("That connection ID is taken.")
+                        }
                     }
 
                     logger.info("There are {} open connections.", whConnections.size)
