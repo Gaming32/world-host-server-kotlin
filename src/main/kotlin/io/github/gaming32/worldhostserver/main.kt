@@ -3,6 +3,7 @@ package io.github.gaming32.worldhostserver
 import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
 import kotlinx.cli.default
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
@@ -25,11 +26,13 @@ fun main(args: Array<String>) {
 
     parser.parse(args)
 
-    WorldHostServer(WorldHostServer.Config(
-        port,
-        baseAddr,
-        inJavaPort,
-        exJavaPort ?: inJavaPort,
-        analyticsTime
-    )).start()
+    runBlocking {
+        WorldHostServer(WorldHostServer.Config(
+            port,
+            baseAddr,
+            inJavaPort,
+            exJavaPort ?: inJavaPort,
+            analyticsTime
+        )).run()
+    }
 }

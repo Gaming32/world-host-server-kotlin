@@ -134,9 +134,19 @@ sealed interface WorldHostS2CMessage {
         override fun encodedSize() = 1 + 8 + 2 + baseIp.length + 2 + 2 + userIp.length + 4
     }
 
-    data class ExternalProxyServer(val server: String, val port: Int) : WorldHostS2CMessage {
-        override fun encode(buf: ByteBuffer): ByteBuffer = buf.put(13).putString(server).putShort(port.toShort())
+    data class ExternalProxyServer(
+        val host: String,
+        val port: Int,
+        val baseAddr: String,
+        val mcPort: Int
+    ) : WorldHostS2CMessage {
+        override fun encode(buf: ByteBuffer): ByteBuffer =
+            buf.put(13)
+                .putString(host)
+                .putShort(port.toShort())
+                .putString(baseAddr)
+                .putShort(mcPort.toShort())
 
-        override fun encodedSize() = 1 + 2 + server.length + 2
+        override fun encodedSize() = 1 + 2 + host.length + 2 + 2 + baseAddr.length + 2
     }
 }

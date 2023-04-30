@@ -5,7 +5,7 @@ value class ConnectionId(val id: Long) {
     companion object {
         const val MAX_CONNECTION_IDS = 1L shl 42
 
-        val WORDS_FOR_CID = WorldHostServer::class.java
+        val WORDS_FOR_CID = ConnectionId::class.java
             .getResourceAsStream("/16k.txt")
             ?.bufferedReader()
             ?.lineSequence()

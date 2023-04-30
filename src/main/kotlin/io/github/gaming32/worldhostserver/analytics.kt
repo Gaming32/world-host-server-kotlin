@@ -1,21 +1,18 @@
 package io.github.gaming32.worldhostserver
 
 import io.github.oshai.KotlinLogging
-import kotlinx.coroutines.DelicateCoroutinesApi
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import java.io.File
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 
 private val logger = KotlinLogging.logger {}
 
-@OptIn(DelicateCoroutinesApi::class)
-fun WorldHostServer.runAnalytics() = GlobalScope.launch {
+suspend fun WorldHostServer.runAnalytics() = coroutineScope {
     if (!config.analyticsTime.isPositive()) {
         logger.info("Analytics disabled by request.")
-        return@launch
+        return@coroutineScope
     }
     logger.info("Starting analytics system to update every ${config.analyticsTime}")
     val file = File("analytics.csv")

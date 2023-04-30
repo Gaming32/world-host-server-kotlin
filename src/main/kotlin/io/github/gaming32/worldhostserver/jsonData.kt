@@ -22,5 +22,7 @@ data class Country(
 data class ExternalProxy(
     val latLong: LatitudeLongitude,
     val addr: String,
-    val port: Int = 9656
+    val port: Int = 9656,
+    val baseAddr: String = addr,
+    val mcPort: Int = port
 )

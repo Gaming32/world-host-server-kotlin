@@ -7,6 +7,8 @@ import io.ktor.client.plugins.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.utils.io.*
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlin.time.Duration
 
@@ -38,10 +40,14 @@ class WorldHostServer(val config: Config) {
     val proxyConnectionsLock = Mutex()
     val proxyConnections = mutableMapOf<Long, Pair<ConnectionId, ByteWriteChannel>>()
 
-    fun start() {
+    suspend fun run() = coroutineScope {
         logger.info("Starting world-host-server $SERVER_VERSION with {}", config)
-        runAnalytics()
-        startMainServer()
-        startProxyServer()
+        launch { runAnalytics() }
+        if (config.baseAddr == null) {
+            startMainServer()
+        } else {
+            launch { startMainServer() }
+            startProxyServer()
+        }
     }
 }
