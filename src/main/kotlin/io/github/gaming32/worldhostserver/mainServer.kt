@@ -61,7 +61,7 @@ suspend fun WorldHostServer.startMainServer() = coroutineScope {
                                 UUID(socket.readChannel.readLong(), socket.readChannel.readLong()),
                                 ConnectionId(socket.readChannel.readLong())
                             ),
-                            remoteAddr, socket
+                            remoteAddr, socket, protocolVersion
                         )
                     } catch (e: Exception) {
                         logger.warn("Invalid handshake from {}", remoteAddr, e)

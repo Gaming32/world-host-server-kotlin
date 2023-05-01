@@ -9,12 +9,13 @@ data class Connection(
     val address: String,
     val userUuid: UUID,
     val socket: SocketWrapper,
+    val protocolVersion: Int,
     var country: Country? = null,
     var externalProxy: ExternalProxy? = null,
     var open: Boolean = true
 ) {
-    constructor(ids: IdsPair, address: String, session: SocketWrapper) :
-        this(ids.connectionId, address, ids.userId, session)
+    constructor(ids: IdsPair, address: String, session: SocketWrapper, protocolVersion: Int) :
+        this(ids.connectionId, address, ids.userId, session, protocolVersion)
 
     override fun toString(): String {
         return "Connection(id=$id, address=$address, userUuid=$userUuid)"
