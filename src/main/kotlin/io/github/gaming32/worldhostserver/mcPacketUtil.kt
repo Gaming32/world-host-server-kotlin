@@ -8,9 +8,7 @@ import java.io.OutputStream
 private const val VARINT_SEGMENT_BITS = 0x7f
 private const val VARINT_CONTINUE_BIT = 0x80
 
-private fun InputStream.readFully(b: ByteArray) = readFully(b, 0, b.size)
-
-private fun InputStream.readFully(b: ByteArray, off: Int, len: Int) {
+private fun InputStream.readFully(b: ByteArray, off: Int = 0, len: Int = b.size) {
     if (len < 0) throw IndexOutOfBoundsException()
     var n = 0
     while (n < len) {
@@ -97,4 +95,3 @@ fun OutputStream.writeString(s: String, maxLength: Int = 32767) {
     writeVarInt(encoded.size)
     write(encoded)
 }
-

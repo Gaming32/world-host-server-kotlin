@@ -22,12 +22,13 @@ import kotlin.io.use
 private val logger = KotlinLogging.logger {}
 
 suspend fun WorldHostServer.startProxyServer() = coroutineScope {
-    if (
-        EXTERNAL_SERVERS?.asSequence()
-            ?.map(ExternalProxy::baseAddr)
-            ?.contains(config.baseAddr) == false
-    ) {
-        logger.warn("Same-process proxy server is configured, but it is not included in external_proxies.json.")
+    if (EXTERNAL_SERVERS?.any { it.addr == null } == false) {
+        logger.info(
+            "Same-process proxy server is enabled, but it is not present in external_proxies.json. This means"
+        )
+        logger.info(
+            "that it will be used only as a fallback if the client's best choice for external proxy goes down."
+        )
     }
     logger.info("Starting proxy server")
     aSocket(SelectorManager(Dispatchers.IO)).tcp().bind(port = config.inJavaPort).use { serverSocket ->

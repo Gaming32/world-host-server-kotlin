@@ -43,7 +43,12 @@ suspend fun WorldHostServer.startMainServer() = coroutineScope {
                 var connection: Connection? = null
                 try {
                     val remoteAddr = clientSocket.remoteAddress.toJavaAddress().address
-                    val protocolVersion = socket.readChannel.readInt()
+                    val protocolVersion = try {
+                        socket.readChannel.readInt()
+                    } catch (_: ClosedReceiveChannelException) {
+                        logger.info("Received a ping connection (immediate disconnect)")
+                        return@launch
+                    }
 
                     if (protocolVersion !in SUPPORTED_PROTOCOLS) {
                         return@launch socket.closeError("Unsupported protocol version $protocolVersion")
@@ -64,6 +69,12 @@ suspend fun WorldHostServer.startMainServer() = coroutineScope {
                     }!!
 
                     logger.info("Connection opened: {}", connection)
+                    if (protocolVersion < PROTOCOL_VERSION) {
+                        logger.warn(
+                            "Client {} has an older client! Client version: {}. Server version: {}.",
+                            connection.id, protocolVersion, PROTOCOL_VERSION
+                        )
+                    }
 
                     launch requestCountry@ {
                         val jsonResponse: JsonObject = httpClient.get("https://api.iplocation.net/") {
@@ -82,6 +93,7 @@ suspend fun WorldHostServer.startMainServer() = coroutineScope {
                         EXTERNAL_SERVERS
                             ?.minBy { it.latLong.haversineDistance(country.latLong) }
                             ?.let { proxy ->
+                                if (proxy.addr == null) return@let
                                 connection.externalProxy = proxy
                                 socket.sendMessage(WorldHostS2CMessage.ExternalProxyServer(
                                     proxy.addr, proxy.port, proxy.baseAddr, proxy.mcPort

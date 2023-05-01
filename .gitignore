@@ -5,6 +5,7 @@ build/
 !**/src/test/**/build/
 logs/
 analytics.csv
+external_proxies.json
 
 ### IntelliJ IDEA ###
 .idea/
