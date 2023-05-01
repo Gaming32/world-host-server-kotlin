@@ -139,6 +139,10 @@ sealed interface WorldHostC2SMessage {
                     if (cid == connection.id) {
                         channel.writeFully(data)
                         channel.flush()
+                    } else {
+                        connection.socket.sendMessage(WorldHostS2CMessage.Error(
+                            "Cannot send a packet to a connection that's not your own."
+                        ))
                     }
                 }
             }
@@ -167,6 +171,10 @@ sealed interface WorldHostC2SMessage {
                 server.proxyConnections[connectionId]?.let { (cid, channel) ->
                     if (cid == connection.id) {
                         channel.close()
+                    } else {
+                        connection.socket.sendMessage(WorldHostS2CMessage.Error(
+                            "Cannot disconnect a connection that's not your own."
+                        ))
                     }
                 }
             }

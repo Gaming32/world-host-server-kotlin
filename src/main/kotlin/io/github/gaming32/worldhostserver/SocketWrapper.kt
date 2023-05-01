@@ -9,7 +9,7 @@ import java.nio.ByteBuffer
 
 private val logger = KotlinLogging.logger {}
 
-class SocketWrapper(val socket: Socket) {
+class SocketWrapper(socket: Socket) {
     val readChannel = socket.openReadChannel()
     val writeChannel = socket.openWriteChannel()
     private val sendLock = Mutex()

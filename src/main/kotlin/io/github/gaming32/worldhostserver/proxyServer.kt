@@ -7,6 +7,7 @@ import io.ktor.network.sockets.*
 import io.ktor.util.network.*
 import io.ktor.utils.io.*
 import io.ktor.utils.io.core.*
+import io.ktor.utils.io.errors.*
 import io.ktor.utils.io.streams.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
@@ -107,7 +108,12 @@ suspend fun WorldHostServer.startProxyServer() = coroutineScope {
                     }
                 } catch (_: ClosedReceiveChannelException) {
                 } catch (e: Exception) {
-                    logger.error("An error occurred in proxy client handling", e)
+                    if (
+                        e !is IOException ||
+                        e.message != "An existing connection was forcibly closed by the remote host"
+                    ) {
+                        logger.error("An error occurred in proxy client handling", e)
+                    }
                 } finally {
                     proxyConnectionsLock.withLock {
                         proxyConnections -= connectionId

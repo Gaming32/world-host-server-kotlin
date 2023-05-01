@@ -24,6 +24,15 @@ value class ConnectionId(val id: Long) {
         fun String.toConnectionId(): ConnectionId {
             val words = split("-")
             if (words.size != 3) {
+                if (words.size == 1) {
+                    val word = words[0]
+                    if (word.length != 9) {
+                        throw IllegalArgumentException(
+                            "Expected nine digit short connection ID, found ${word.length}."
+                        )
+                    }
+                    return ConnectionId(word.toLong(36))
+                }
                 throw IllegalArgumentException("Three words are expected. Found ${words.size}.")
             }
             var result = 0L
@@ -39,7 +48,7 @@ value class ConnectionId(val id: Long) {
     }
 
     init {
-        require(id in 0..<MAX_CONNECTION_IDS) { "Invalid connection ID $id" }
+        require(id in 0..<MAX_CONNECTION_IDS) { "Connection ID $id out of range" }
     }
 
     override fun toString(): String {
