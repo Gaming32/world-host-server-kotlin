@@ -36,8 +36,7 @@ data class LatitudeLongitude(val lat: Double, val long: Double) {
         val x2 = toRadians(other.lat)
         val y2 = toRadians(other.long)
 
-        val a = sin((x2 - x1) / 2).pow(2)
-            + cos(x1) * cos(x2) * sin((y2 - y1) / 2).pow(2)
+        val a = sin((x2 - x1) / 2).pow(2) + cos(x1) * cos(x2) * sin((y2 - y1) / 2).pow(2)
 
         return 2 * asin(min(1.0, sqrt(a)))
     }

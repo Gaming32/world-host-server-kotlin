@@ -23,19 +23,17 @@ sealed interface JoinType {
             connection: Connection,
             config: WorldHostServer.Config
         ): WorldHostS2CMessage.OnlineGame? {
-            var baseAddr = if (connection.protocolVersion >= 3) {
+            val baseAddr = if (connection.protocolVersion >= 3) {
                 connection.externalProxy?.baseAddr
             } else {
                 null
-            }
-            baseAddr = baseAddr ?: config.baseAddr ?: return null
+            } ?: config.baseAddr ?: return null
 
-            var port = if (connection.protocolVersion >= 3) {
+            val port = if (connection.protocolVersion >= 3) {
                 connection.externalProxy?.mcPort
             } else {
                 null
-            }
-            port = port ?: config.exJavaPort
+            } ?: config.exJavaPort
 
             return WorldHostS2CMessage.OnlineGame("${connection.id}.$baseAddr", port)
         }
