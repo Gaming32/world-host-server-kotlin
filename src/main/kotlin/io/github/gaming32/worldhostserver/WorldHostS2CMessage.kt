@@ -21,10 +21,10 @@ sealed interface WorldHostS2CMessage {
         override fun encodedSize() = 1 + 16
     }
 
-    data class OnlineGame(val host: String, val port: Int) : WorldHostS2CMessage {
-        override fun encode(buf: ByteBuffer): ByteBuffer = buf.put(2).putString(host).putShort(port.toShort())
+    data class OnlineGame(val host: String, val port: Int, val owner: UUID) : WorldHostS2CMessage {
+        override fun encode(buf: ByteBuffer) = buf.put(2).putString(host).putShort(port.toShort()).putUuid(owner)
 
-        override fun encodedSize() = 1 + 2 + host.length + 2
+        override fun encodedSize() = 1 + 2 + host.length + 2 + 16
     }
 
     data class FriendRequest(val fromUser: UUID) : WorldHostS2CMessage {

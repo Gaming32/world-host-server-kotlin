@@ -15,7 +15,7 @@ sealed interface JoinType {
 
     data class UPnP(val port: Int) : JoinType {
         override fun toOnlineGame(connection: Connection, config: WorldHostServer.Config) =
-            WorldHostS2CMessage.OnlineGame(connection.address, port)
+            WorldHostS2CMessage.OnlineGame(connection.address, port, connection.userUuid)
     }
 
     object Proxy : JoinType {
@@ -35,7 +35,7 @@ sealed interface JoinType {
                 null
             } ?: config.exJavaPort
 
-            return WorldHostS2CMessage.OnlineGame("${connection.id}.$baseAddr", port)
+            return WorldHostS2CMessage.OnlineGame("${connection.id}.$baseAddr", port, connection.userUuid)
         }
 
         override fun toString() = "Proxy"
