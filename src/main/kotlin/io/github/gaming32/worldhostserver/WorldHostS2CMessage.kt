@@ -149,4 +149,10 @@ sealed interface WorldHostS2CMessage {
 
         override fun encodedSize() = 1 + 2 + host.length + 2 + 2 + baseAddr.length + 2
     }
+
+    data class OutdatedWorldHost(val recommendedVersion: String) : WorldHostS2CMessage {
+        override fun encode(buf: ByteBuffer) = buf.put(14).putString(recommendedVersion)
+
+        override fun encodedSize() = 1 + 2 + recommendedVersion.length
+    }
 }
