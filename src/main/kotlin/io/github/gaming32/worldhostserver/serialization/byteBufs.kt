@@ -1,5 +1,6 @@
-package io.github.gaming32.worldhostserver
+package io.github.gaming32.worldhostserver.serialization
 
+import io.github.gaming32.worldhostserver.ConnectionId
 import java.nio.ByteBuffer
 import java.util.*
 

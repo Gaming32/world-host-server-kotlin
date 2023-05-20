@@ -1,5 +1,6 @@
 package io.github.gaming32.worldhostserver
 
+import io.github.gaming32.worldhostserver.serialization.byte
 import java.nio.ByteBuffer
 
 sealed interface JoinType {

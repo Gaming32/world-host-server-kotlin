@@ -1,7 +1,11 @@
 package io.github.gaming32.worldhostserver
 
+import io.github.gaming32.worldhostserver.serialization.PacketSerializable
+import io.github.gaming32.worldhostserver.serialization.putCid
+import java.nio.ByteBuffer
+
 @JvmInline
-value class ConnectionId(val id: Long) {
+value class ConnectionId(val id: Long) : PacketSerializable {
     companion object {
         const val MAX_CONNECTION_IDS = 1L shl 42
 
@@ -59,4 +63,8 @@ value class ConnectionId(val id: Long) {
                 WORDS_FOR_CID[second] + '-' +
                 WORDS_FOR_CID[third]
     }
+
+    override fun encode(buf: ByteBuffer) = buf.putCid(this)
+
+    override fun encodedLength() = 8
 }

@@ -1,5 +1,6 @@
 package io.github.gaming32.worldhostserver
 
+import io.github.gaming32.worldhostserver.serialization.toByteBuf
 import io.github.oshai.KotlinLogging
 import io.ktor.network.sockets.*
 import io.ktor.utils.io.*
@@ -16,9 +17,9 @@ class SocketWrapper(socket: Socket) {
     private val recvLock = Mutex()
 
     suspend fun sendMessage(message: WorldHostS2CMessage) = sendLock.withLock {
-        val size = message.encodedSize()
-        writeChannel.writeInt(size)
-        writeChannel.writeFully(message.encode(ByteBuffer.allocate(size)).flip())
+        val bb = message.toByteBuf()
+        writeChannel.writeInt(bb.remaining())
+        writeChannel.writeFully(bb)
         writeChannel.flush()
     }
 
