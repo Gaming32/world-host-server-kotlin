@@ -33,10 +33,10 @@ sealed interface WorldHostS2CMessage {
         override fun encodedSize() = 1 + 16
     }
 
-    data class PublishedWorld(val user: UUID) : WorldHostS2CMessage {
-        override fun encode(buf: ByteBuffer) = buf.put(4).putUuid(user)
+    data class PublishedWorld(val user: UUID, val connectionId: ConnectionId) : WorldHostS2CMessage {
+        override fun encode(buf: ByteBuffer) = buf.put(4).putUuid(user).putCid(connectionId)
 
-        override fun encodedSize() = 1 + 16
+        override fun encodedSize() = 1 + 16 + 8
     }
 
     data class ClosedWorld(val user: UUID) : WorldHostS2CMessage {

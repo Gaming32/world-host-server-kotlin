@@ -1,10 +1,13 @@
 package io.github.gaming32.worldhostserver
 
+import io.github.oshai.KotlinLogging
 import io.ktor.utils.io.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.sync.withLock
 import java.nio.ByteBuffer
 import java.util.*
+
+private val logger = KotlinLogging.logger {}
 
 sealed interface WorldHostC2SMessage {
     companion object {
@@ -19,6 +22,7 @@ sealed interface WorldHostC2SMessage {
             7 -> QueryResponse(buf.cid, ByteArray(buf.int).also(buf::get))
             8 -> ProxyS2CPacket(buf.long, ByteArray(buf.remaining()).also(buf::get))
             9 -> ProxyDisconnect(buf.long)
+            10 -> RequestDirectJoin(buf.cid)
             else -> throw IllegalArgumentException("Received packet with unknown type_id from client: $typeId")
         }
     }
@@ -52,7 +56,7 @@ sealed interface WorldHostC2SMessage {
 
     data class PublishedWorld(val friends: Collection<UUID>) : WorldHostC2SMessage {
         override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
-            val response = WorldHostS2CMessage.PublishedWorld(connection.userUuid)
+            val response = WorldHostS2CMessage.PublishedWorld(connection.userUuid, connection.id)
             for (friend in friends) {
                 for (other in server.whConnections.byUserId(friend)) {
                     if (other.id == connection.id) continue
@@ -76,6 +80,13 @@ sealed interface WorldHostC2SMessage {
 
     data class RequestJoin(val friend: UUID) : WorldHostC2SMessage {
         override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
+            if (connection.protocolVersion >= 4) {
+                logger.warn("Connection ${connection.id} tried to use unsupported RequestJoin message")
+                connection.socket.sendMessage(WorldHostS2CMessage.Error(
+                    "Please use the v4+ RequestDirectJoin message instead of the unsupported RequestJoin message"
+                ))
+                return
+            }
             val response = WorldHostS2CMessage.RequestJoin(connection.userUuid, connection.id)
             server.whConnections.byUserId(friend)
                 .lastOrNull()
@@ -178,6 +189,16 @@ sealed interface WorldHostC2SMessage {
                     }
                 }
             }
+        }
+    }
+
+    data class RequestDirectJoin(val connectionId: ConnectionId) : WorldHostC2SMessage {
+        override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
+            val response = WorldHostS2CMessage.RequestJoin(connection.userUuid, connection.id)
+            server.whConnections.byId(connectionId)
+                ?.takeIf { it.id != connection.id }
+                ?.socket
+                ?.sendMessage(response)
         }
     }
 }
