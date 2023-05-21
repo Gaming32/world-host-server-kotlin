@@ -15,6 +15,13 @@ value class ConnectionId(val id: Long) : PacketSerializable {
             ?.lineSequence()
             ?.filter { !it.startsWith("//") }
             ?.toList()
+            ?.also {
+                if (it.size != 1 shl 14) {
+                    throw Exception(
+                        "Expected WORDS_FOR_CID to have ${1 shl 14} elements, but it has ${it.size} elements."
+                    )
+                }
+            }
             ?: throw IllegalStateException("Unable to find 16k.txt")
 
         val WORDS_FOR_CID_INVERSE = sortedMapOf<String, Int>(String.CASE_INSENSITIVE_ORDER).apply {

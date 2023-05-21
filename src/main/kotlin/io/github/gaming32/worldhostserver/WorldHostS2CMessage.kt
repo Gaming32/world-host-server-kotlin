@@ -18,9 +18,9 @@ sealed interface WorldHostS2CMessage : FieldedSerializer {
         override val fields = listOf(user)
     }
 
-    data class OnlineGame(val host: String, val port: Int, val owner: UUID) : WorldHostS2CMessage {
+    data class OnlineGame(val host: String, val port: Int, val ownerCid: ConnectionId) : WorldHostS2CMessage {
         override val packetId: Byte get() = 2
-        override val fields = listOf(host, port.toShort(), owner)
+        override val fields = listOf(host, port.toShort(), ownerCid)
     }
 
     data class FriendRequest(val fromUser: UUID) : WorldHostS2CMessage {
@@ -124,6 +124,11 @@ sealed interface WorldHostS2CMessage : FieldedSerializer {
     data class OutdatedWorldHost(val recommendedVersion: String) : WorldHostS2CMessage {
         override val packetId: Byte get() = 14
         override val fields = listOf(recommendedVersion)
+    }
+
+    data class ConnectionNotFound(val connectionId: ConnectionId) : WorldHostS2CMessage {
+        override val packetId: Byte get() = 15
+        override val fields = listOf(connectionId)
     }
 
     override fun encode(buf: ByteBuffer) = super.encode(buf.put(packetId))

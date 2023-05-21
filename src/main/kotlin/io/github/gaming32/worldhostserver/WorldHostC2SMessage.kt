@@ -202,6 +202,8 @@ sealed interface WorldHostC2SMessage {
                 ?.takeIf { it.id != connection.id }
                 ?.socket
                 ?.sendMessage(response)
+                ?.let { return }
+            connection.socket.sendMessage(WorldHostS2CMessage.ConnectionNotFound(connectionId))
         }
     }
 }
