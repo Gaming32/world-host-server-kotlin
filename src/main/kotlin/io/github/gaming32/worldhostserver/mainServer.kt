@@ -86,10 +86,7 @@ suspend fun WorldHostServer.startMainServer() = coroutineScope {
                             "Client {} has an older client! Client version: {}. Server version: {}.",
                             connection.id, protocolVersion, PROTOCOL_VERSION
                         )
-                        @Suppress("KotlinConstantConditions")
-                        if (protocolVersion >= 4) {
-                            socket.sendMessage(WorldHostS2CMessage.OutdatedWorldHost(VERSION_NAME))
-                        }
+                        socket.sendMessage(WorldHostS2CMessage.OutdatedWorldHost(VERSION_NAME))
                     }
 
                     launch requestCountry@ {
