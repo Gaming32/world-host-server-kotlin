@@ -26,7 +26,7 @@ sealed interface WorldHostC2SMessage {
             8 -> ProxyS2CPacket(buf.long, ByteArray(buf.remaining()).also(buf::get))
             9 -> ProxyDisconnect(buf.long)
             10 -> RequestDirectJoin(buf.cid)
-            else -> throw IllegalArgumentException("Received packet with unknown type_id from client: $typeId")
+            else -> throw IllegalArgumentException("Received packet with unknown typeId from client: $typeId")
         }
     }
 

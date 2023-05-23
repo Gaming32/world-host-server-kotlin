@@ -9,7 +9,7 @@ sealed interface JoinType {
             0 -> UPnP(buf.short.toUShort().toInt())
             1 -> Proxy
             2 -> Punch
-            else -> throw IllegalArgumentException("Received packet with unknown join_type_id from client: $joinTypeId")
+            else -> throw IllegalArgumentException("Received packet with unknown joinTypeId from client: $joinTypeId")
         }
     }
 
