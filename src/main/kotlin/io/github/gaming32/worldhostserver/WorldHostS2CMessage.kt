@@ -1,9 +1,12 @@
 package io.github.gaming32.worldhostserver
 
 import io.github.gaming32.worldhostserver.serialization.FieldedSerializer
+import io.github.oshai.KotlinLogging
 import java.net.InetAddress
 import java.nio.ByteBuffer
 import java.util.*
+
+private val logger = KotlinLogging.logger {}
 
 sealed interface WorldHostS2CMessage : FieldedSerializer {
     val packetId: Byte
@@ -18,9 +21,22 @@ sealed interface WorldHostS2CMessage : FieldedSerializer {
         override val fields = listOf(user)
     }
 
-    data class OnlineGame(val host: String, val port: Int, val ownerCid: ConnectionId) : WorldHostS2CMessage {
+    data class OnlineGame(
+        val host: String,
+        val port: Int,
+        val ownerCid: ConnectionId,
+        val isPunchProtocol: Boolean = false
+    ) : WorldHostS2CMessage {
         override val packetId: Byte get() = 2
-        override val fields = listOf(host, port.toShort(), ownerCid)
+        override val fields = listOf(host, port.toShort(), ownerCid, isPunchProtocol)
+
+        init {
+            if (isPunchProtocol && (host.isNotEmpty() || port != 0)) {
+                logger.warn(
+                    "WorldHostS2CMessage.OnlineGame constructed with isPunchProtocol, but host and port are non-empty"
+                )
+            }
+        }
     }
 
     data class FriendRequest(val fromUser: UUID) : WorldHostS2CMessage {
@@ -105,10 +121,13 @@ sealed interface WorldHostS2CMessage : FieldedSerializer {
         val baseIp: String,
         val basePort: Int,
         val userIp: String,
-        val protocolVersion: Int
+        val protocolVersion: Int,
+        val punchPort: Int
     ) : WorldHostS2CMessage {
         override val packetId: Byte get() = 12
-        override val fields = listOf(connectionId, baseIp, basePort.toShort(), userIp, protocolVersion)
+        override val fields = listOf(
+            connectionId, baseIp, basePort.toShort(), userIp, protocolVersion, punchPort.toShort()
+        )
     }
 
     data class ExternalProxyServer(

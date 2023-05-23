@@ -28,6 +28,10 @@ fun main(args: Array<String>) {
         ArgType.Int, shortName = "p",
         description = "Port to bind to"
     ).default(9646)
+    val punchPort by parser.option(
+        ArgType.Int, shortName = "P",
+        description = "Port to bind to for punch server (or 0 to disable punch server)"
+    ).default(9746)
     var baseAddr by parser.option(
         ArgType.String, shortName = "a",
         description = "Base address to use for proxy connections"
@@ -82,6 +86,7 @@ fun main(args: Array<String>) {
         }
         WorldHostServer(WorldHostServer.Config(
             port,
+            punchPort,
             baseAddr,
             inJavaPort,
             exJavaPort ?: inJavaPort,

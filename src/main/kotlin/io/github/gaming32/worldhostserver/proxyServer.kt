@@ -21,7 +21,11 @@ import kotlin.io.use
 
 private val logger = KotlinLogging.logger {}
 
-suspend fun WorldHostServer.startProxyServer() = coroutineScope {
+suspend fun WorldHostServer.runProxyServer() = coroutineScope {
+    if (config.baseAddr == null) {
+        logger.info("Proxy server disabled by request")
+        return@coroutineScope
+    }
     if (EXTERNAL_SERVERS?.any { it.addr == null } == false) {
         logger.info(
             "Same-process proxy server is enabled, but it is not present in external_proxies.json. This means"

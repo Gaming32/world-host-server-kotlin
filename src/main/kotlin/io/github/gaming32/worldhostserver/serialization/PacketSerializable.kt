@@ -20,7 +20,8 @@ interface PacketSerializable {
                     put(address.size.toByte()).put(address)
                 },
                 { 1 + address.size }
-            )
+            ),
+            Boolean::class.javaObjectType to Default<Boolean>({ put(if (it) 1 else 0) }, 1)
         )
 
         fun Any.toSerializable() = if (this is PacketSerializable) {

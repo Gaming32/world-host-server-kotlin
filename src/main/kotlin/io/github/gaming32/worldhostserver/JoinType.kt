@@ -8,6 +8,7 @@ sealed interface JoinType {
         fun decode(buf: ByteBuffer) = when (val joinTypeId = buf.byte.toUByte().toInt()) {
             0 -> UPnP(buf.short.toUShort().toInt())
             1 -> Proxy
+            2 -> Punch
             else -> throw IllegalArgumentException("Received packet with unknown join_type_id from client: $joinTypeId")
         }
     }
@@ -39,6 +40,19 @@ sealed interface JoinType {
             return WorldHostS2CMessage.OnlineGame("${connection.id}.$baseAddr", port, connection.id)
         }
 
-        override fun toString() = "Proxy"
+        override fun toString() = "JoinType.Proxy"
+    }
+
+    object Punch : JoinType {
+        override fun toOnlineGame(
+            connection: Connection,
+            config: WorldHostServer.Config
+        ) = if (config.punchPort <= 0) {
+            null
+        } else {
+            WorldHostS2CMessage.OnlineGame("", 0, connection.id, true)
+        }
+
+        override fun toString() = "JoinType.Punch"
     }
 }

@@ -20,6 +20,7 @@ private val logger = KotlinLogging.logger {}
 class WorldHostServer(val config: Config) {
     data class Config(
         val port: Int,
+        val punchPort: Int,
         val baseAddr: String?,
         val inJavaPort: Int,
         val exJavaPort: Int,
@@ -59,11 +60,8 @@ class WorldHostServer(val config: Config) {
             }
         }
         launch { runAnalytics() }
-        if (config.baseAddr == null) {
-            startMainServer()
-        } else {
-            launch { startMainServer() }
-            startProxyServer()
-        }
+        launch { runProxyServer() }
+        launch { runPunchServer() }
+        runMainServer()
     }
 }

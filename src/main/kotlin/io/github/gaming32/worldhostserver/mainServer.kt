@@ -38,7 +38,7 @@ private val logger = KotlinLogging.logger {}
 
 data class IdsPair(val userId: UUID, val connectionId: ConnectionId)
 
-suspend fun WorldHostServer.startMainServer() = coroutineScope {
+suspend fun WorldHostServer.runMainServer() = coroutineScope {
     if (!SUPPORTED_PROTOCOLS.all(PROTOCOL_VERSION_MAP::containsKey)) {
         throw AssertionError(
             "PROTOCOL_VERSION_MAP missing the following keys: " +
@@ -126,7 +126,12 @@ suspend fun WorldHostServer.startMainServer() = coroutineScope {
                     logger.info("There are {} open connections.", whConnections.size)
 
                     socket.sendMessage(WorldHostS2CMessage.ConnectionInfo(
-                        connection.id, config.baseAddr ?: "", config.exJavaPort, remoteAddr, PROTOCOL_VERSION
+                        connection.id,
+                        config.baseAddr ?: "",
+                        config.exJavaPort,
+                        remoteAddr,
+                        PROTOCOL_VERSION,
+                        config.punchPort
                     ))
 
                     while (true) {
@@ -147,7 +152,7 @@ suspend fun WorldHostServer.startMainServer() = coroutineScope {
                             logger.debug("Received message {}", message)
                         }
                         with(message) {
-                            handle(this@startMainServer, connection)
+                            handle(this@runMainServer, connection)
                         }
                     }
                 } catch (e: Exception) {
