@@ -1,5 +1,6 @@
 package io.github.gaming32.worldhostserver
 
+import io.github.gaming32.worldhostserver.util.LockedObject
 import io.github.oshai.KotlinLogging
 import io.ktor.client.*
 import io.ktor.client.engine.java.*
@@ -12,7 +13,6 @@ import io.ktor.utils.io.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
 import kotlin.time.Duration
 
 private val logger = KotlinLogging.logger {}
@@ -41,8 +41,9 @@ class WorldHostServer(val config: Config) {
 
     val whConnections = ConnectionSetAsync()
 
-    val proxyConnectionsLock = Mutex()
-    val proxyConnections = mutableMapOf<Long, Pair<ConnectionId, ByteWriteChannel>>()
+    val proxyConnections = LockedObject(mutableMapOf<Long, Pair<ConnectionId, ByteWriteChannel>>())
+
+    val waitingPunch = LockedObject(mutableMapOf<Pair<ConnectionId, ConnectionId>, PunchClient>())
 
     suspend fun run() = coroutineScope {
         logger.info("Starting world-host-server $SERVER_VERSION with {}", config)

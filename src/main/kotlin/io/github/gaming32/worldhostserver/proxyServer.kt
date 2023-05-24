@@ -1,6 +1,7 @@
 package io.github.gaming32.worldhostserver
 
 import io.github.gaming32.worldhostserver.ConnectionId.Companion.toConnectionId
+import io.github.gaming32.worldhostserver.util.cast
 import io.github.oshai.KotlinLogging
 import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
@@ -11,7 +12,6 @@ import io.ktor.utils.io.errors.*
 import io.ktor.utils.io.streams.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
-import kotlinx.coroutines.sync.withLock
 import org.intellij.lang.annotations.Language
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -70,8 +70,8 @@ suspend fun WorldHostServer.runProxyServer() = coroutineScope {
                     connection = whConnections.byId(destCid) ?:
                         return@launch disconnect(sendChannel, nextState, "Couldn't find that server")
 
-                    proxyConnectionsLock.withLock {
-                        proxyConnections[connectionId] = Pair(connection!!.id, sendChannel)
+                    proxyConnections.withLock {
+                        this[connectionId] = Pair(connection!!.id, sendChannel)
                     }
                     connection.socket.sendMessage(WorldHostS2CMessage.ProxyConnect(
                         connectionId,
@@ -120,9 +120,7 @@ suspend fun WorldHostServer.runProxyServer() = coroutineScope {
                         logger.error("An error occurred in proxy client handling", e)
                     }
                 } finally {
-                    proxyConnectionsLock.withLock {
-                        proxyConnections -= connectionId
-                    }
+                    proxyConnections.withLock { this -= connectionId }
                     if (connection?.open == true) {
                         connection.socket.sendMessage(WorldHostS2CMessage.ProxyDisconnect(connectionId))
                     }

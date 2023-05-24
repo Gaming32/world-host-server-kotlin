@@ -1,5 +1,6 @@
 package io.github.gaming32.worldhostserver
 
+import io.github.gaming32.worldhostserver.util.castOrNull
 import io.github.oshai.KotlinLogging
 import io.ktor.client.call.*
 import io.ktor.client.request.*

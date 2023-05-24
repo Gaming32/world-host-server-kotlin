@@ -1,6 +1,6 @@
 package io.github.gaming32.worldhostserver.serialization
 
-import io.github.gaming32.worldhostserver.cast
+import io.github.gaming32.worldhostserver.util.cast
 import java.net.InetAddress
 import java.nio.ByteBuffer
 import java.util.*

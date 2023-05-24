@@ -6,7 +6,6 @@ import io.github.gaming32.worldhostserver.serialization.uuid
 import io.github.oshai.KotlinLogging
 import io.ktor.utils.io.*
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.sync.withLock
 import java.nio.ByteBuffer
 import java.util.*
 
@@ -148,8 +147,8 @@ sealed interface WorldHostC2SMessage {
 
     data class ProxyS2CPacket(val connectionId: Long, val data: ByteArray) : WorldHostC2SMessage {
         override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
-            server.proxyConnectionsLock.withLock {
-                server.proxyConnections[connectionId]?.let { (cid, channel) ->
+            server.proxyConnections.withLock {
+                this[connectionId]?.let { (cid, channel) ->
                     if (cid == connection.id) {
                         channel.writeFully(data)
                         channel.flush()
@@ -181,8 +180,8 @@ sealed interface WorldHostC2SMessage {
 
     data class ProxyDisconnect(val connectionId: Long) : WorldHostC2SMessage {
         override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
-            server.proxyConnectionsLock.withLock {
-                server.proxyConnections[connectionId]?.let { (cid, channel) ->
+            server.proxyConnections.withLock {
+                this[connectionId]?.let { (cid, channel) ->
                     if (cid == connection.id) {
                         channel.close()
                     } else {

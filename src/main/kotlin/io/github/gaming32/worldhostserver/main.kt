@@ -1,5 +1,6 @@
 package io.github.gaming32.worldhostserver
 
+import io.github.gaming32.worldhostserver.util.DurationArgType
 import io.github.oshai.KotlinLogging
 import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
