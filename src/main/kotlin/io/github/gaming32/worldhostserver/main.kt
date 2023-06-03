@@ -48,7 +48,7 @@ fun main(args: Array<String>) {
     val analyticsTime by parser.option(
         DurationArgType,
         description = "Amount of time between analytics syncs"
-    ).default(10.minutes)
+    ).default((-1).minutes)
     val shutdownTime by parser.option(
         DurationArgType,
         description = "The amount of time before the server automatically shuts down. Useful for restart scripts."
