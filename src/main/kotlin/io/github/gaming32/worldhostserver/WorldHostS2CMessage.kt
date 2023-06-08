@@ -11,9 +11,9 @@ private val logger = KotlinLogging.logger {}
 sealed interface WorldHostS2CMessage : FieldedSerializer {
     val packetId: Byte
 
-    data class Error(val message: String) : WorldHostS2CMessage {
+    data class Error(val message: String, val critical: Boolean = false) : WorldHostS2CMessage {
         override val packetId: Byte get() = 0
-        override val fields = listOf(message)
+        override val fields = listOf(message, critical)
     }
 
     data class IsOnlineTo(val user: UUID) : WorldHostS2CMessage {

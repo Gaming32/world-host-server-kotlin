@@ -48,9 +48,9 @@ class SocketWrapper(socket: Socket) {
 
     suspend fun closeError(message: String) {
         try {
-            sendMessage(WorldHostS2CMessage.Error(message))
+            sendMessage(WorldHostS2CMessage.Error(message, true))
         } catch (e: Exception) {
-            logger.warn("Error in error sending (message \"{}\")", message, e)
+            logger.warn("Error in critical error sending (message \"{}\")", message, e)
         }
         close()
     }

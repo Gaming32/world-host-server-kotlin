@@ -82,6 +82,16 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                     }!!
 
                     logger.info("Connection opened: {}", connection)
+
+                    socket.sendMessage(WorldHostS2CMessage.ConnectionInfo(
+                        connection.id,
+                        config.baseAddr ?: "",
+                        config.exJavaPort,
+                        remoteAddr,
+                        PROTOCOL_VERSION,
+                        config.punchPort
+                    ))
+
                     if (protocolVersion < PROTOCOL_VERSION) {
                         logger.warn(
                             "Client {} has an older client! Client version: {}. Server version: {}.",
@@ -125,15 +135,6 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                     }
 
                     logger.info("There are {} open connections.", whConnections.size)
-
-                    socket.sendMessage(WorldHostS2CMessage.ConnectionInfo(
-                        connection.id,
-                        config.baseAddr ?: "",
-                        config.exJavaPort,
-                        remoteAddr,
-                        PROTOCOL_VERSION,
-                        config.punchPort
-                    ))
 
                     while (true) {
                         val message = try {
