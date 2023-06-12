@@ -12,6 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -127,11 +128,18 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
 
                     val start = System.currentTimeMillis()
                     while (!whConnections.add(connection)) {
+                        val other = whConnections.byId(connection.id)
+                        if (other?.address == connection.address) {
+                            other.socket.closeError("Connection ID taken by same IP.")
+                            whConnections.add(connection, true)
+                            break
+                        }
                         val time = System.currentTimeMillis()
                         if (time - start > 500) {
                             logger.warn("ID ${connection.id} used twice. Disconnecting $connection.")
                             return@launch socket.closeError("That connection ID is taken.")
                         }
+                        yield()
                     }
 
                     logger.info("There are {} open connections.", whConnections.size)

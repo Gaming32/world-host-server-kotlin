@@ -31,8 +31,8 @@ class ConnectionSetSync {
 
     fun byUserId(userId: UUID) = connectionsByUserId[userId] ?: listOf()
 
-    fun add(connection: Connection): Boolean {
-        if (connection.id in connections) {
+    fun add(connection: Connection, force: Boolean = false): Boolean {
+        if (!force && connection.id in connections) {
             return false
         }
         val old = connections.put(connection.id, connection)
@@ -68,7 +68,7 @@ class ConnectionSetAsync {
 
     suspend fun byUserId(userId: UUID) = lock.withLock { sync.byUserId(userId) }
 
-    suspend fun add(connection: Connection) = lock.withLock { sync.add(connection) }
+    suspend fun add(connection: Connection, force: Boolean = false) = lock.withLock { sync.add(connection, force) }
 
     suspend fun remove(connection: Connection) = lock.withLock { sync.remove(connection) }
 
