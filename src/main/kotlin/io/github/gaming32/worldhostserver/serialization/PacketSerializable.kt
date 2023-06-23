@@ -1,6 +1,7 @@
 package io.github.gaming32.worldhostserver.serialization
 
 import io.github.gaming32.worldhostserver.util.cast
+import io.ktor.util.reflect.*
 import java.net.InetAddress
 import java.nio.ByteBuffer
 import java.util.*
@@ -27,7 +28,7 @@ interface PacketSerializable {
         fun Any.toSerializable() = if (this is PacketSerializable) {
             this
         } else {
-            defaults[javaClass]
+            (defaults[javaClass] ?: defaults.entries.firstOrNull { this.instanceOf(it.key.kotlin) }?.value)
                 ?.cast<Default<Any>>()
                 ?.toSerializable(this)
                 ?: throw IllegalArgumentException("Not serializable: $javaClass")
