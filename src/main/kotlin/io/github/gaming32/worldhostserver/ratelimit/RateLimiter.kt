@@ -11,30 +11,37 @@ class RateLimiter<K : Any>(vararg buckets: RateLimitBucket<K>) {
         var i = 0
         for (bucket in buckets) {
             bucket.entries.withLock {
-                val it = iterator()
+                val it = values.iterator()
                 while (it.hasNext()) {
                     if (++i % maxChecksPerYield == 0) {
                         yield()
                     }
                     val entry = it.next()
-                    val chop = (
-                        (System.currentTimeMillis() - entry.value.timeMillis).milliseconds / bucket.expiry
-                    ).toInt()
-                    if (chop > 0) {
-                        val newCount = entry.value.count - chop
-                        if (newCount <= 0) {
-                            it.remove()
-                        } else {
-                            entry.setValue(entry.value.copy(
-                                timeMillis = entry.value.timeMillis + (bucket.expiry * chop).inWholeMilliseconds,
-                                count = newCount
-                            ))
-                        }
+                    if ((System.currentTimeMillis() - entry.timeMillis).milliseconds >= bucket.expiry) {
+                        it.remove()
                     }
                 }
             }
         }
     }
 
-    suspend fun ratelimit(key: K) = buckets.forEach { it.ratelimit(key) }
+    suspend fun ratelimit(key: K) {
+        var error: RateLimited? = null
+        for (bucket in buckets) {
+            try {
+                bucket.ratelimit(key)
+            } catch (e: RateLimited) {
+                if (error == null) {
+                    error = e
+                }
+            }
+        }
+        if (error != null) {
+            throw error
+        }
+    }
+
+    override fun toString(): String {
+        return "RateLimiter(buckets=$buckets)"
+    }
 }

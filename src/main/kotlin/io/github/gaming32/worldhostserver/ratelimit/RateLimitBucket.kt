@@ -11,7 +11,7 @@ class RateLimitBucket<K : Any>(val name: String, val maxCount: Int, val expiry: 
     suspend fun ratelimit(key: K) = entries.withLock {
         val entry = this[key]
         val currentTime = System.currentTimeMillis()
-        if (entry == null) {
+        if (entry == null || (currentTime - entry.timeMillis).milliseconds >= expiry) {
             this[key] = RateLimitEntry(currentTime, 1)
             return@withLock
         }
@@ -22,21 +22,10 @@ class RateLimitBucket<K : Any>(val name: String, val maxCount: Int, val expiry: 
             )
             return@withLock
         }
-        val chop = ((currentTime - entry.timeMillis).milliseconds / expiry).toInt()
-        if (chop > 0) {
-            val newCount = entry.count - chop
-            if (newCount <= 0) {
-                remove(key)
-            } else {
-                this[key] = entry.copy(
-                    timeMillis = entry.timeMillis + (expiry * chop).inWholeMilliseconds,
-                    count = newCount
-                )
-            }
-            if (newCount < maxCount) {
-                return@withLock
-            }
-        }
         throw RateLimited(this@RateLimitBucket, (entry.timeMillis - currentTime).milliseconds + expiry)
+    }
+
+    override fun toString(): String {
+        return "RateLimitBucket(name=$name, maxCount=$maxCount, expiry=$expiry)"
     }
 }

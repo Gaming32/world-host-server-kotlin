@@ -9,7 +9,6 @@ import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
-import io.ktor.util.network.*
 import io.ktor.utils.io.errors.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
@@ -19,6 +18,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.decodeFromStream
 import java.io.File
+import java.net.InetAddress
+import java.net.InetSocketAddress
 import java.util.*
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -51,7 +52,7 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
         )
     }
     logger.info("Starting WH server on port {}", config.port)
-    val rateLimiter = RateLimiter<String>(
+    val rateLimiter = RateLimiter<InetAddress>(
         RateLimitBucket("perMinute", 20, 60.seconds),
         RateLimitBucket("perHour", 400, 60.minutes),
     )
@@ -69,9 +70,10 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                 val socket = SocketWrapper(clientSocket)
                 var connection: Connection? = null
                 try {
-                    val remoteAddr = clientSocket.remoteAddress.toJavaAddress().address
+                    val addrObj = clientSocket.remoteAddress.toJavaAddress() as InetSocketAddress
+                    val remoteAddr = addrObj.hostString!!
                     try {
-                        rateLimiter.ratelimit(remoteAddr)
+                        rateLimiter.ratelimit(addrObj.address)
                     } catch (rateLimited: RateLimited) {
                         logger.warn("$remoteAddr is reconnecting too quickly! ${rateLimited.message}")
                         return@launch socket.closeError("Ratelimit exceeded! ${rateLimited.message}")
