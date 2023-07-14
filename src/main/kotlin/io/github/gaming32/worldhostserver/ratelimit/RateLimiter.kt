@@ -18,7 +18,7 @@ class RateLimiter<K : Any>(vararg buckets: RateLimitBucket<K>) {
                     }
                     val entry = it.next()
                     val chop = (
-                        (entry.value.timeMillis - System.currentTimeMillis()).milliseconds / bucket.expiry
+                        (System.currentTimeMillis() - entry.value.timeMillis).milliseconds / bucket.expiry
                     ).toInt()
                     if (chop > 0) {
                         val newCount = entry.value.count - chop
