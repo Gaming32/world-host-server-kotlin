@@ -64,6 +64,10 @@ sealed interface WorldHostS2CMessage : FieldedSerializer {
         override val fields = listOf(friend, connectionId)
     }
 
+    @Deprecated(
+        "QueryResponse uses an old format. NewQueryResponse should be used instead.",
+        ReplaceWith("NewQueryResponse")
+    )
     data class QueryResponse(val friend: UUID, val data: ByteArray) : WorldHostS2CMessage {
         override val packetId: Byte get() = 8
         override val fields = listOf(friend, data.size, data)
@@ -72,6 +76,7 @@ sealed interface WorldHostS2CMessage : FieldedSerializer {
             if (this === other) return true
             if (javaClass != other?.javaClass) return false
 
+            @Suppress("DEPRECATION")
             other as QueryResponse
 
             if (friend != other.friend) return false
@@ -148,6 +153,27 @@ sealed interface WorldHostS2CMessage : FieldedSerializer {
     data class ConnectionNotFound(val connectionId: ConnectionId) : WorldHostS2CMessage {
         override val packetId: Byte get() = 15
         override val fields = listOf(connectionId)
+    }
+
+    data class NewQueryResponse(val friend: UUID, val data: ByteArray) : WorldHostS2CMessage {
+        override val packetId: Byte get() = 8
+        override val fields = listOf(friend, data)
+
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (javaClass != other?.javaClass) return false
+
+            other as NewQueryResponse
+
+            if (friend != other.friend) return false
+            return data.contentEquals(other.data)
+        }
+
+        override fun hashCode(): Int {
+            var result = friend.hashCode()
+            result = 31 * result + data.contentHashCode()
+            return result
+        }
     }
 
     override fun encode(buf: ByteBuffer) = super.encode(buf.put(packetId))

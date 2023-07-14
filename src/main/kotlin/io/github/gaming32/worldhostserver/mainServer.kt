@@ -21,12 +21,13 @@ import kotlinx.serialization.json.decodeFromStream
 import java.io.File
 import java.util.*
 
-const val PROTOCOL_VERSION = 4
+const val PROTOCOL_VERSION = 5
 val SUPPORTED_PROTOCOLS = 2..PROTOCOL_VERSION
 val PROTOCOL_VERSION_MAP = mapOf(
     2 to "0.3.2",
     3 to "0.3.4",
-    4 to "0.3.5"
+    4 to "0.4.3",
+    5 to "0.4.4",
 )
 val VERSION_NAME = PROTOCOL_VERSION_MAP[PROTOCOL_VERSION]!!
 

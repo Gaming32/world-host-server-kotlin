@@ -25,6 +25,7 @@ sealed interface WorldHostC2SMessage {
             8 -> ProxyS2CPacket(buf.long, ByteArray(buf.remaining()).also(buf::get))
             9 -> ProxyDisconnect(buf.long)
             10 -> RequestDirectJoin(buf.cid)
+            11 -> NewQueryResponse(buf.cid, ByteArray(buf.int).also(buf::get))
             else -> throw IllegalArgumentException("Received packet with unknown typeId from client: $typeId")
         }
     }
@@ -123,6 +124,7 @@ sealed interface WorldHostC2SMessage {
 
     data class QueryResponse(val connectionId: ConnectionId, val data: ByteArray) : WorldHostC2SMessage {
         override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
+            @Suppress("DEPRECATION") // Use old, deprecated format with old, deprecated, c2s message
             val response = WorldHostS2CMessage.QueryResponse(connection.userUuid, data)
             if (connectionId == connection.id) return
             server.whConnections.byId(connectionId)?.socket?.sendMessage(response)
@@ -203,6 +205,30 @@ sealed interface WorldHostC2SMessage {
                 ?.sendMessage(response)
                 ?.let { return }
             connection.socket.sendMessage(WorldHostS2CMessage.ConnectionNotFound(connectionId))
+        }
+    }
+
+    data class NewQueryResponse(val connectionId: ConnectionId, val data: ByteArray) : WorldHostC2SMessage {
+        override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
+            val response = WorldHostS2CMessage.NewQueryResponse(connection.userUuid, data)
+            if (connectionId == connection.id) return
+            server.whConnections.byId(connectionId)?.socket?.sendMessage(response)
+        }
+
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (javaClass != other?.javaClass) return false
+
+            other as NewQueryResponse
+
+            if (connectionId != other.connectionId) return false
+            return data.contentEquals(other.data)
+        }
+
+        override fun hashCode(): Int {
+            var result = connectionId.hashCode()
+            result = 31 * result + data.contentHashCode()
+            return result
         }
     }
 }
