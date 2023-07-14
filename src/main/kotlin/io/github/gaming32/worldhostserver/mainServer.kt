@@ -1,5 +1,8 @@
 package io.github.gaming32.worldhostserver
 
+import io.github.gaming32.worldhostserver.ratelimit.RateLimitBucket
+import io.github.gaming32.worldhostserver.ratelimit.RateLimited
+import io.github.gaming32.worldhostserver.ratelimit.RateLimiter
 import io.github.gaming32.worldhostserver.util.castOrNull
 import io.github.oshai.KotlinLogging
 import io.ktor.client.call.*
@@ -8,11 +11,8 @@ import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
 import io.ktor.util.network.*
 import io.ktor.utils.io.errors.*
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.yield
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -20,6 +20,8 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.decodeFromStream
 import java.io.File
 import java.util.*
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 
 const val PROTOCOL_VERSION = 5
 val SUPPORTED_PROTOCOLS = 2..PROTOCOL_VERSION
@@ -49,6 +51,16 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
         )
     }
     logger.info("Starting WH server on port {}", config.port)
+    val rateLimiter = RateLimiter<String>(
+        RateLimitBucket("perMinute", 20, 60.seconds),
+        RateLimitBucket("perHour", 400, 60.minutes),
+    )
+    launch {
+        while (true) {
+            delay(60.seconds)
+            rateLimiter.pumpLimits(32)
+        }
+    }
     aSocket(SelectorManager(Dispatchers.IO)).tcp().bind(port = config.port).use { serverSocket ->
         logger.info("Started WH server on {}", serverSocket.localAddress)
         while (true) {
@@ -58,6 +70,13 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                 var connection: Connection? = null
                 try {
                     val remoteAddr = clientSocket.remoteAddress.toJavaAddress().address
+                    try {
+                        rateLimiter.ratelimit(remoteAddr)
+                    } catch (rateLimited: RateLimited) {
+                        logger.warn("$remoteAddr is reconnecting too quickly! ${rateLimited.message}")
+                        return@launch socket.closeError("Ratelimit exceeded! ${rateLimited.message}")
+                    }
+
                     val protocolVersion = try {
                         socket.readChannel.readInt()
                     } catch (_: ClosedReceiveChannelException) {
