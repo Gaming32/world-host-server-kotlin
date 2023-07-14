@@ -164,6 +164,21 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
 
                     logger.info("There are {} open connections.", whConnections.size)
 
+                    run {
+                        val received = receivedFriendRequests.withLock { remove(connection.userUuid) } ?: return@run
+                        rememberedFriendRequests.withLock {
+                            received.forEach { receivedFrom ->
+                                socket.sendMessage(WorldHostS2CMessage.FriendRequest(receivedFrom))
+                                this[receivedFrom]?.let {
+                                    it -= connection.userUuid
+                                    if (it.isEmpty()) {
+                                        remove(receivedFrom)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     while (true) {
                         val message = try {
                             socket.recvMessage()

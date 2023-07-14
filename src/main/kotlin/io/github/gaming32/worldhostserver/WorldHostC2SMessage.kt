@@ -3,6 +3,7 @@ package io.github.gaming32.worldhostserver
 import io.github.gaming32.worldhostserver.serialization.byte
 import io.github.gaming32.worldhostserver.serialization.cid
 import io.github.gaming32.worldhostserver.serialization.uuid
+import io.github.gaming32.worldhostserver.util.addWithCircleLimit
 import io.github.oshai.KotlinLogging
 import io.ktor.utils.io.*
 import kotlinx.coroutines.CoroutineScope
@@ -50,9 +51,31 @@ sealed interface WorldHostC2SMessage {
     data class FriendRequest(val toUser: UUID) : WorldHostC2SMessage {
         override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
             val response = WorldHostS2CMessage.FriendRequest(connection.userUuid)
-            for (other in server.whConnections.byUserId(toUser)) {
-                if (other.id == connection.id) continue
-                other.socket.sendMessage(response)
+            val otherConnections = server.whConnections.byUserId(toUser)
+            if (otherConnections.isNotEmpty()) {
+                for (other in server.whConnections.byUserId(toUser)) {
+                    if (other.id == connection.id) continue
+                    other.socket.sendMessage(response)
+                }
+            } else {
+                val removedRemembered = server.rememberedFriendRequests.withLock {
+                    val myRequests = getOrPut(connection.userUuid) { mutableSetOf() }
+                    myRequests.addWithCircleLimit(toUser, 5)
+                }
+                val removedReceived = server.receivedFriendRequests.withLock {
+                    this[removedRemembered]?.let {
+                        it -= connection.userUuid
+                        if (it.isEmpty()) {
+                            remove(removedRemembered)
+                        }
+                    }
+                    getOrPut(toUser) { mutableSetOf() }.addWithCircleLimit(connection.userUuid, 10)
+                }
+                if (removedReceived != null) {
+                    server.rememberedFriendRequests.withLock {
+                        this[removedReceived]?.let { it -= toUser }
+                    }
+                }
             }
         }
     }

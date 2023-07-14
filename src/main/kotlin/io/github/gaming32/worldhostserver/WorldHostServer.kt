@@ -13,6 +13,7 @@ import io.ktor.utils.io.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import java.util.*
 import kotlin.time.Duration
 
 private val logger = KotlinLogging.logger {}
@@ -44,6 +45,10 @@ class WorldHostServer(val config: Config) {
     val proxyConnections = LockedObject(mutableMapOf<Long, Pair<ConnectionId, ByteWriteChannel>>())
 
     val waitingPunch = LockedObject(mutableMapOf<Pair<ConnectionId, ConnectionId>, PunchClient>())
+
+    val rememberedFriendRequests = LockedObject(mutableMapOf<UUID, MutableSet<UUID>>())
+
+    val receivedFriendRequests = LockedObject(mutableMapOf<UUID, MutableSet<UUID>>())
 
     suspend fun run() = coroutineScope {
         logger.info("Starting world-host-server $SERVER_VERSION with {}", config)

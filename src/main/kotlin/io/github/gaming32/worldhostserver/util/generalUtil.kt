@@ -36,3 +36,16 @@ inline fun <T : Any> Mutex.withTryLock(owner: Any? = null, action: () -> T): T? 
         null
     }
 }
+
+fun <E> MutableSet<E>.addWithCircleLimit(value: E, limit: Int): E? =
+    if (add(value)) {
+        if (size > limit) {
+            iterator().let {
+                val removed = it.next()
+                it.remove()
+                removed
+            }
+        } else {
+            null
+        }
+    } else null
