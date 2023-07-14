@@ -32,7 +32,7 @@ fun main(args: Array<String>) {
     val punchPort by parser.option(
         ArgType.Int, shortName = "P",
         description = "Port to bind to for punch server (or 0 to disable punch server)"
-    ).default(9746)
+    ).default(/* 9746 */ 0)
     var baseAddr by parser.option(
         ArgType.String, shortName = "a",
         description = "Base address to use for proxy connections"
