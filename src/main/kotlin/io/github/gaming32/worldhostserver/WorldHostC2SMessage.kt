@@ -146,12 +146,11 @@ sealed interface WorldHostC2SMessage {
     }
 
     data class QueryResponse(val connectionId: ConnectionId, val data: ByteArray) : WorldHostC2SMessage {
-        override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
-            @Suppress("DEPRECATION") // Use old, deprecated format with old, deprecated, c2s message
-            val response = WorldHostS2CMessage.QueryResponse(connection.userUuid, data)
-            if (connectionId == connection.id) return
-            server.whConnections.byId(connectionId)?.socket?.sendMessage(response)
-        }
+        @Suppress("SuspendFunctionOnCoroutineScope")
+        override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) =
+            with(NewQueryResponse(connectionId, data)) {
+                handle(server, connection)
+            }
 
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
@@ -233,9 +232,16 @@ sealed interface WorldHostC2SMessage {
 
     data class NewQueryResponse(val connectionId: ConnectionId, val data: ByteArray) : WorldHostC2SMessage {
         override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
-            val response = WorldHostS2CMessage.NewQueryResponse(connection.userUuid, data)
             if (connectionId == connection.id) return
-            server.whConnections.byId(connectionId)?.socket?.sendMessage(response)
+            val otherConnection = server.whConnections.byId(connectionId) ?: return
+            otherConnection.socket.sendMessage(
+                if (otherConnection.protocolVersion < 5) {
+                    @Suppress("DEPRECATION")
+                    WorldHostS2CMessage.QueryResponse(connection.userUuid, data)
+                } else {
+                    WorldHostS2CMessage.NewQueryResponse(connection.userUuid, data)
+                }
+            )
         }
 
         override fun equals(other: Any?): Boolean {
