@@ -216,6 +216,9 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                         connection.open = false
                         logger.info("Connection closed: {}", connection)
                         whConnections.remove(connection)
+                        with(WorldHostC2SMessage.ClosedWorld(connection.openToFriends.toList())) {
+                            handle(this@runMainServer, connection)
+                        }
                         logger.info("There are {} open connections.", whConnections.size)
                     }
                 }

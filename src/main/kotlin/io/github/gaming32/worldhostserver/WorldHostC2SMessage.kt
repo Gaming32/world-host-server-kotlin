@@ -82,6 +82,7 @@ sealed interface WorldHostC2SMessage {
 
     data class PublishedWorld(val friends: Collection<UUID>) : WorldHostC2SMessage {
         override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
+            connection.openToFriends += friends
             val response = WorldHostS2CMessage.PublishedWorld(connection.userUuid, connection.id)
             for (friend in friends) {
                 for (other in server.whConnections.byUserId(friend)) {
@@ -94,6 +95,7 @@ sealed interface WorldHostC2SMessage {
 
     data class ClosedWorld(val friends: Collection<UUID>) : WorldHostC2SMessage {
         override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
+            connection.openToFriends -= friends.toSet()
             val response = WorldHostS2CMessage.ClosedWorld(connection.userUuid)
             for (friend in friends) {
                 for (other in server.whConnections.byUserId(friend)) {

@@ -12,7 +12,8 @@ data class Connection(
     val protocolVersion: Int,
     var country: Country? = null,
     var externalProxy: ExternalProxy? = null,
-    var open: Boolean = true
+    var open: Boolean = true,
+    val openToFriends: MutableSet<UUID> = mutableSetOf()
 ) {
     constructor(ids: IdsPair, address: String, session: SocketWrapper, protocolVersion: Int) :
         this(ids.connectionId, address, ids.userId, session, protocolVersion)
