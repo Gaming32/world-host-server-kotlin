@@ -3,23 +3,25 @@ package io.github.gaming32.worldhostserver
 import io.github.gaming32.worldhostserver.ratelimit.RateLimitBucket
 import io.github.gaming32.worldhostserver.ratelimit.RateLimited
 import io.github.gaming32.worldhostserver.ratelimit.RateLimiter
-import io.github.gaming32.worldhostserver.util.castOrNull
+import io.github.gaming32.worldhostserver.util.COMPRESSED_GEOLITE_CITY_FILES
+import io.github.gaming32.worldhostserver.util.IpInfoMap
 import io.github.oshai.KotlinLogging
-import io.ktor.client.call.*
-import io.ktor.client.request.*
 import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
 import io.ktor.utils.io.errors.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.serialization.ExperimentalSerializationApi
-import kotlinx.serialization.json.*
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromStream
 import java.io.File
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.util.*
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.ExperimentalTime
+import kotlin.time.measureTimedValue
 
 const val PROTOCOL_VERSION = 5
 val SUPPORTED_PROTOCOLS = 2..PROTOCOL_VERSION
@@ -48,6 +50,17 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                 (SUPPORTED_PROTOCOLS.toSet() - PROTOCOL_VERSION_MAP.keys).joinToString()
         )
     }
+
+    @OptIn(ExperimentalTime::class)
+    val ipInfoMap = run {
+        logger.info("Downloading IP info map...")
+        val (ipInfoMap, time) = measureTimedValue {
+            IpInfoMap.loadFromCompressedGeoliteCityFiles(*COMPRESSED_GEOLITE_CITY_FILES.toTypedArray())
+        }
+        logger.info("Downloaded IP info map in $time")
+        ipInfoMap
+    }
+
     logger.info("Starting WH server on port {}", config.port)
     val rateLimiter = RateLimiter<InetAddress>(
         RateLimitBucket("perMinute", 20, 60.seconds),
@@ -120,26 +133,18 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                         socket.sendMessage(WorldHostS2CMessage.OutdatedWorldHost(VERSION_NAME))
                     }
 
-                    launch requestCountry@ {
-                        val jsonResponse: JsonObject = httpClient.get("http://ip-api.com/json/${connection.address}") {
-                            parameter("fields", "countryCode,lat,lon")
-                        }.body()
-                        if (jsonResponse.isEmpty()) return@requestCountry
-                        connection.country = jsonResponse["countryCode"].castOrNull<JsonPrimitive>()?.content
-                        val lat = jsonResponse["lat"].castOrNull<JsonPrimitive>()?.doubleOrNull
-                        val long = jsonResponse["long"].castOrNull<JsonPrimitive>()?.doubleOrNull
-                        if (lat != null && long != null) {
-                            val latLong = LatitudeLongitude(lat, long)
-                            EXTERNAL_SERVERS
-                                ?.minBy { it.latLong.haversineDistance(latLong) }
-                                ?.let { proxy ->
-                                    if (proxy.addr == null) return@let
-                                    connection.externalProxy = proxy
-                                    socket.sendMessage(WorldHostS2CMessage.ExternalProxyServer(
-                                        proxy.addr, proxy.port, proxy.baseAddr, proxy.mcPort
-                                    ))
-                                }
-                        }
+                    run requestCountry@ {
+                        val ipInfo = ipInfoMap[addrObj.address] ?: return@requestCountry
+                        connection.country = ipInfo.country
+                        EXTERNAL_SERVERS
+                            ?.minBy { it.latLong.haversineDistance(ipInfo.latLong) }
+                            ?.let { proxy ->
+                                if (proxy.addr == null) return@let
+                                connection.externalProxy = proxy
+                                socket.sendMessage(WorldHostS2CMessage.ExternalProxyServer(
+                                    proxy.addr, proxy.port, proxy.baseAddr, proxy.mcPort
+                                ))
+                            }
                     }
 
                     val start = System.currentTimeMillis()

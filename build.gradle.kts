@@ -9,7 +9,7 @@ plugins {
 group = "io.github.gaming32"
 version = "0.4.4"
 
-val ktorVersion = "2.2.4"
+val ktorVersion = "2.3.10"
 
 application {
     mainClass.set("io.github.gaming32.worldhostserver.MainKt")
@@ -37,7 +37,11 @@ dependencies {
     implementation("io.ktor:ktor-client-content-negotiation:$ktorVersion")
     implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
 
+    implementation("org.apache.commons:commons-csv:1.11.0")
+
     implementation("org.jetbrains.kotlinx:kotlinx-cli:0.3.5")
+
+    testImplementation(kotlin("test"))
 }
 
 blossom {
@@ -57,5 +61,9 @@ tasks {
         compilerOptions {
             freeCompilerArgs.add("-opt-in=kotlin.ExperimentalStdlibApi")
         }
+    }
+
+    test {
+        useJUnitPlatform()
     }
 }
