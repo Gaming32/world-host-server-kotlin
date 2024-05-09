@@ -13,10 +13,7 @@ import io.ktor.utils.io.errors.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.serialization.ExperimentalSerializationApi
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.decodeFromStream
+import kotlinx.serialization.json.*
 import java.io.File
 import java.net.InetAddress
 import java.net.InetSocketAddress
@@ -124,28 +121,25 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                     }
 
                     launch requestCountry@ {
-                        val jsonResponse: JsonObject = httpClient.get("https://api.iplocation.net/") {
-                            parameter("ip", connection.address)
+                        val jsonResponse: JsonObject = httpClient.get("http://ip-api.com/json/${connection.address}") {
+                            parameter("fields", "countryCode,lat,lon")
                         }.body()
-                        val countryCode = jsonResponse["country_code2"].castOrNull<JsonPrimitive>()?.content
-                            ?: return@requestCountry logger.warn("No country code returned for {}", connection.id)
-                        if (countryCode == "-") {
-                            return@requestCountry logger.info("{} not in a country", connection.id)
+                        if (jsonResponse.isEmpty()) return@requestCountry
+                        connection.country = jsonResponse["countryCode"].castOrNull<JsonPrimitive>()?.content
+                        val lat = jsonResponse["lat"].castOrNull<JsonPrimitive>()?.doubleOrNull
+                        val long = jsonResponse["long"].castOrNull<JsonPrimitive>()?.doubleOrNull
+                        if (lat != null && long != null) {
+                            val latLong = LatitudeLongitude(lat, long)
+                            EXTERNAL_SERVERS
+                                ?.minBy { it.latLong.haversineDistance(latLong) }
+                                ?.let { proxy ->
+                                    if (proxy.addr == null) return@let
+                                    connection.externalProxy = proxy
+                                    socket.sendMessage(WorldHostS2CMessage.ExternalProxyServer(
+                                        proxy.addr, proxy.port, proxy.baseAddr, proxy.mcPort
+                                    ))
+                                }
                         }
-                        val country = COUNTRIES[countryCode]
-                            ?: return@requestCountry logger.warn(
-                                "Invalid country code {} for {}", countryCode, connection.id
-                            )
-                        connection.country = country
-                        EXTERNAL_SERVERS
-                            ?.minBy { it.latLong.haversineDistance(country.latLong) }
-                            ?.let { proxy ->
-                                if (proxy.addr == null) return@let
-                                connection.externalProxy = proxy
-                                socket.sendMessage(WorldHostS2CMessage.ExternalProxyServer(
-                                    proxy.addr, proxy.port, proxy.baseAddr, proxy.mcPort
-                                ))
-                            }
                     }
 
                     val start = System.currentTimeMillis()

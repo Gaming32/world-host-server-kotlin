@@ -10,7 +10,7 @@ data class Connection(
     val userUuid: UUID,
     val socket: SocketWrapper,
     val protocolVersion: Int,
-    var country: Country? = null,
+    var country: String? = null,
     var externalProxy: ExternalProxy? = null,
     var open: Boolean = true,
     val openToFriends: MutableSet<UUID> = mutableSetOf()

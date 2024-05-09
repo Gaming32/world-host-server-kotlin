@@ -27,7 +27,7 @@ suspend fun WorldHostServer.runAnalytics() = coroutineScope {
         var total = 0
         val byCountry = mutableMapOf<String, Int>()
         whConnections.forEach { connection ->
-            connection.country?.let { byCountry[it.code] = (byCountry[it.code] ?: 0) + 1 }
+            connection.country?.let { byCountry.merge(it, 1, Int::plus) }
             total++
         }
         file.appendText("$timestamp,$total,${byCountry.entries.joinToString(";") { "${it.key}:${it.value}" }}\n")
