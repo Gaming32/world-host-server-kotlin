@@ -8,19 +8,10 @@ import kotlinx.cli.default
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.ExperimentalSerializationApi
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.decodeFromStream
 import kotlin.system.exitProcess
 import kotlin.time.Duration.Companion.minutes
 
 private val logger = KotlinLogging.logger {}
-
-@OptIn(ExperimentalSerializationApi::class)
-val COUNTRIES = WorldHostServer::class.java.getResourceAsStream("/countries.json")
-    ?.let { Json.decodeFromStream<List<Country>>(it) }
-    ?.associateBy { it.code }
-    ?: throw IllegalStateException("Missing countries.json")
 
 fun main(args: Array<String>) {
     val parser = ArgParser("world-host-server")
