@@ -156,7 +156,7 @@ sealed interface WorldHostS2CMessage : FieldedSerializer {
     }
 
     data class NewQueryResponse(val friend: UUID, val data: ByteArray) : WorldHostS2CMessage {
-        override val packetId: Byte get() = 8
+        override val packetId: Byte get() = 16
         override val fields = listOf(friend, data)
 
         override fun equals(other: Any?): Boolean {
@@ -174,6 +174,11 @@ sealed interface WorldHostS2CMessage : FieldedSerializer {
             result = 31 * result + data.contentHashCode()
             return result
         }
+    }
+
+    data class Warning(val message: String, val important: Boolean) : WorldHostS2CMessage {
+        override val packetId: Byte get() = 17
+        override val fields = listOf(message, important)
     }
 
     override fun encode(buf: ByteBuffer) = super.encode(buf.put(packetId))
