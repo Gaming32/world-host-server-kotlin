@@ -24,11 +24,12 @@ tasks.withType<Jar> {
 
 repositories {
     mavenCentral()
+    maven("https://libraries.minecraft.net")
 }
 
 dependencies {
-    implementation("org.apache.logging.log4j:log4j-slf4j-impl:2.19.0")
-    implementation("org.apache.logging.log4j:log4j-core:2.19.0")
+    implementation("org.apache.logging.log4j:log4j-slf4j2-impl:2.23.1")
+    implementation("org.apache.logging.log4j:log4j-core:2.23.1")
     implementation("io.github.oshai:kotlin-logging-jvm:4.0.0-beta-22")
 
     implementation("io.ktor:ktor-network:$ktorVersion")
@@ -38,6 +39,8 @@ dependencies {
     implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
 
     implementation("org.apache.commons:commons-csv:1.11.0")
+
+    implementation("com.mojang:authlib:6.0.54")
 
     implementation("org.jetbrains.kotlinx:kotlinx-cli:0.3.5")
 
@@ -49,7 +52,7 @@ blossom {
 }
 
 kotlin {
-    jvmToolchain(11)
+    jvmToolchain(17)
 }
 
 tasks {

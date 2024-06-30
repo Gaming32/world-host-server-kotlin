@@ -1,13 +1,20 @@
 package io.github.gaming32.worldhostserver
 
+import com.mojang.authlib.GameProfile
+import com.mojang.authlib.exceptions.AuthenticationUnavailableException
+import com.mojang.authlib.minecraft.MinecraftSessionService
+import com.mojang.authlib.yggdrasil.ProfileResult
+import com.mojang.authlib.yggdrasil.YggdrasilAuthenticationService
 import io.github.gaming32.worldhostserver.ratelimit.RateLimitBucket
 import io.github.gaming32.worldhostserver.ratelimit.RateLimited
 import io.github.gaming32.worldhostserver.ratelimit.RateLimiter
 import io.github.gaming32.worldhostserver.util.COMPRESSED_GEOLITE_CITY_FILES
 import io.github.gaming32.worldhostserver.util.IpInfoMap
+import io.github.gaming32.worldhostserver.util.MinecraftCrypt
 import io.github.oshai.KotlinLogging
 import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
+import io.ktor.utils.io.*
 import io.ktor.utils.io.errors.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
@@ -15,23 +22,32 @@ import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
 import java.io.File
+import java.math.BigInteger
 import java.net.InetAddress
 import java.net.InetSocketAddress
+import java.net.Proxy
+import java.net.SocketException
+import java.security.KeyPair
+import java.security.SecureRandom
 import java.util.*
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 import kotlin.time.measureTimedValue
 
-const val PROTOCOL_VERSION = 5
+const val PROTOCOL_VERSION = 6
 val SUPPORTED_PROTOCOLS = 2..PROTOCOL_VERSION
 val PROTOCOL_VERSION_MAP = mapOf(
     2 to "0.3.2",
     3 to "0.3.4",
     4 to "0.4.3",
     5 to "0.4.4",
+    6 to "0.4.14",
 )
 val VERSION_NAME = PROTOCOL_VERSION_MAP[PROTOCOL_VERSION]!!
+
+private const val NEW_AUTH_PROTOCOL = 6
+private const val KEY_PREFIX = 0xFAFA0000.toInt()
 
 @OptIn(ExperimentalSerializationApi::class)
 val EXTERNAL_SERVERS = File("external_proxies.json")
@@ -59,6 +75,12 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
         }
         logger.info("Downloaded IP info map in $time")
         ipInfoMap
+    }
+
+    val sessionService = YggdrasilAuthenticationService(Proxy.NO_PROXY).createMinecraftSessionService()
+    val keyPair = run {
+        logger.info("Generating key pair")
+        MinecraftCrypt.generateKeyPair()
     }
 
     logger.info("Starting WH server on port {}", config.port)
@@ -102,13 +124,15 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
 
                     @Suppress("UNNECESSARY_NOT_NULL_ASSERTION") // I have several questions
                     connection = try {
-                        Connection(
+                        val ids = if (protocolVersion < NEW_AUTH_PROTOCOL) {
                             IdsPair(
-                                UUID(socket.readChannel.readLong(), socket.readChannel.readLong()),
+                                socket.readChannel.readUuid(),
                                 ConnectionId(socket.readChannel.readLong())
-                            ),
-                            remoteAddr, socket, protocolVersion
-                        )
+                            )
+                        } else {
+                            performHandshake(socket, sessionService, keyPair, addrObj.address)
+                        }
+                        Connection(ids, remoteAddr, socket, protocolVersion)
                     } catch (e: Exception) {
                         logger.warn("Invalid handshake from {}", remoteAddr, e)
                         return@launch socket.closeError("Invalid handshake: $e")
@@ -131,6 +155,14 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                             connection.id, protocolVersion, PROTOCOL_VERSION
                         )
                         socket.sendMessage(WorldHostS2CMessage.OutdatedWorldHost(VERSION_NAME))
+                    }
+
+                    if (protocolVersion < NEW_AUTH_PROTOCOL && connection.userUuid.version() == 4) {
+                        socket.sendMessage(WorldHostS2CMessage.Warning(
+                            "You are using an old insecure version of World Host. It is highly recommended that " +
+                                "you update to ${PROTOCOL_VERSION_MAP[NEW_AUTH_PROTOCOL]} or later.",
+                            important = true
+                        ))
                     }
 
                     run requestCountry@ {
@@ -203,10 +235,10 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                     }
                 } catch (e: Exception) {
                     // Shouldn't this be throwing a ClosedReceiveChannelException instead?
-                    if (
-                        e !is IOException ||
-                        e.message != "An existing connection was forcibly closed by the remote host"
-                    ) {
+                    val isSimpleDisconnect =
+                        (e is IOException && e.message == "An existing connection was forcibly closed by the remote host") ||
+                            (e is SocketException && e.message == "Connection reset")
+                    if (!isSimpleDisconnect) {
                         logger.error("A critical error occurred in WH client handling", e)
                     }
                 } finally {
@@ -225,3 +257,70 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
         }
     }
 }
+
+private suspend fun performHandshake(
+    socket: SocketWrapper,
+    sessionService: MinecraftSessionService,
+    keyPair: KeyPair,
+    remoteAddress: InetAddress
+): IdsPair {
+    socket.writeChannel.writeInt(KEY_PREFIX)
+    socket.writeChannel.flush()
+
+    val encodedPublicKey = keyPair.public.encoded
+    val challenge = ByteArray(16).also(SecureRandom()::nextBytes)
+
+    socket.writeChannel.writeShort(encodedPublicKey.size.toShort())
+    socket.writeChannel.writeFully(encodedPublicKey)
+    socket.writeChannel.writeShort(challenge.size.toShort())
+    socket.writeChannel.writeFully(challenge)
+    socket.writeChannel.flush()
+
+    val encryptedChallenge = ByteArray(socket.readChannel.readShort().toUShort().toInt())
+    socket.readChannel.readFully(encryptedChallenge)
+
+    if (!challenge.contentEquals(MinecraftCrypt.decryptUsingKey(keyPair.private, encryptedChallenge))) {
+        throw IllegalStateException("Challenge failed")
+    }
+
+    val encryptedSecretKey = ByteArray(socket.readChannel.readShort().toUShort().toInt())
+    socket.readChannel.readFully(encryptedSecretKey)
+
+    val secretKey = MinecraftCrypt.decryptByteToSecretKey(keyPair.private, encryptedSecretKey)
+    val authKey = BigInteger(MinecraftCrypt.digestData("", keyPair.public, secretKey)).toString(16)
+
+    val uuid = socket.readChannel.readUuid()
+    val username = socket.readChannel.readString()
+    val connectionId = ConnectionId(socket.readChannel.readLong())
+
+    val expectedUuid = when (uuid.version()) {
+        4 -> {
+            val profile = try {
+                withContext(Dispatchers.IO) {
+                    sessionService.hasJoinedServer(username, authKey, remoteAddress)
+                }
+            } catch (_: AuthenticationUnavailableException) {
+                logger.warn("Authentication servers are down. Unable to verify $username. Will allow anyway.")
+                ProfileResult(GameProfile(uuid, username))
+            }
+            if (profile == null) {
+                throw IllegalStateException("Failed to verify username.")
+            }
+            profile.profile.id
+        }
+        3 -> UUID.nameUUIDFromBytes("OfflinePlayer:$username".encodeToByteArray())
+        else -> throw IllegalArgumentException("Unsupported UUID version ${uuid.version()}")
+    }
+    if (uuid != expectedUuid) {
+        throw IllegalStateException("Mismatched UUID. Client said $uuid. Expected $expectedUuid")
+    }
+
+    return IdsPair(uuid, connectionId)
+}
+
+private suspend fun ByteReadChannel.readString() =
+    ByteArray(readShort().toUShort().toInt())
+        .also { readFully(it) }
+        .decodeToString()
+
+private suspend fun ByteReadChannel.readUuid() = UUID(readLong(), readLong())

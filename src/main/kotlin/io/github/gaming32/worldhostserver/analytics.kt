@@ -11,7 +11,7 @@ private val logger = KotlinLogging.logger {}
 
 suspend fun WorldHostServer.runAnalytics() = coroutineScope {
     if (!config.analyticsTime.isPositive()) {
-        logger.info("Analytics disabled by request.")
+        logger.info("Analytics disabled by request")
         return@coroutineScope
     }
     logger.info("Starting analytics system to update every ${config.analyticsTime}")
