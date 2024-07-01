@@ -4,7 +4,7 @@ import io.github.gaming32.worldhostserver.serialization.byte
 import io.github.gaming32.worldhostserver.serialization.cid
 import io.github.gaming32.worldhostserver.serialization.uuid
 import io.github.gaming32.worldhostserver.util.addWithCircleLimit
-import io.github.oshai.KotlinLogging
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.utils.io.*
 import kotlinx.coroutines.CoroutineScope
 import java.nio.ByteBuffer
@@ -109,10 +109,12 @@ sealed interface WorldHostC2SMessage {
     data class RequestJoin(val friend: UUID) : WorldHostC2SMessage {
         override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
             if (connection.protocolVersion >= 4) {
-                logger.warn("Connection ${connection.id} tried to use unsupported RequestJoin message")
-                connection.socket.sendMessage(WorldHostS2CMessage.Error(
-                    "Please use the v4+ RequestDirectJoin message instead of the unsupported RequestJoin message"
-                ))
+                logger.warn { "Connection ${connection.id} tried to use unsupported RequestJoin message" }
+                connection.socket.sendMessage(
+                    WorldHostS2CMessage.Error(
+                        "Please use the v4+ RequestDirectJoin message instead of the unsupported RequestJoin message"
+                    )
+                )
                 return
             }
             val response = WorldHostS2CMessage.RequestJoin(connection.userUuid, connection.id)

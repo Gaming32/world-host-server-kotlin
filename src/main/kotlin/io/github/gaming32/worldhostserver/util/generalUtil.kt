@@ -1,8 +1,10 @@
 package io.github.gaming32.worldhostserver.util
 
+import io.ktor.utils.io.errors.*
 import kotlinx.cli.ArgType
 import kotlinx.cli.ParsingException
 import kotlinx.coroutines.sync.Mutex
+import java.net.SocketException
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
@@ -49,3 +51,7 @@ fun <E> MutableSet<E>.addWithCircleLimit(value: E, limit: Int): E? =
             null
         }
     } else null
+
+val Exception.isSimpleDisconnectException get() =
+    (this is IOException && message == "An existing connection was forcibly closed by the remote host") ||
+        (this is SocketException && message == "Connection reset")

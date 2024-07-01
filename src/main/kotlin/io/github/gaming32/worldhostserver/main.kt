@@ -1,7 +1,7 @@
 package io.github.gaming32.worldhostserver
 
 import io.github.gaming32.worldhostserver.util.DurationArgType
-import io.github.oshai.KotlinLogging
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
 import kotlinx.cli.default
@@ -49,7 +49,7 @@ fun main(args: Array<String>) {
 
     if (EXTERNAL_SERVERS != null) {
         if (EXTERNAL_SERVERS.count { it.addr == null } > 1) {
-            logger.error("external_proxies.json defines must have no more than one missing addr field.")
+            logger.error { "external_proxies.json defines must have no more than one missing addr field." }
             exitProcess(1)
         }
         for (server in EXTERNAL_SERVERS) {
@@ -57,8 +57,8 @@ fun main(args: Array<String>) {
                 if (baseAddr == null) {
                     baseAddr = server.baseAddr
                 } else {
-                    logger.info("Both the CLI and external_proxies.json specify baseAddr for the local server.")
-                    logger.info("--baseAddr from the CLI will override the value in external_proxies.json.")
+                    logger.info { "Both the CLI and external_proxies.json specify baseAddr for the local server." }
+                    logger.info { "--baseAddr from the CLI will override the value in external_proxies.json." }
                 }
                 break
             }
@@ -70,9 +70,9 @@ fun main(args: Array<String>) {
         val shutdownTime = shutdownTime
         if (shutdownTime != null) {
             launch {
-                logger.info("Automatically shutting down after $shutdownTime")
+                logger.info { "Automatically shutting down after $shutdownTime" }
                 delay(shutdownTime)
-                logger.info("Shutting down because shutdownTime was reached")
+                logger.info { "Shutting down because shutdownTime was reached" }
                 exitProcess(0)
             }
         }

@@ -1,7 +1,7 @@
 package io.github.gaming32.worldhostserver
 
 import io.github.gaming32.worldhostserver.util.LockedObject
-import io.github.oshai.KotlinLogging
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.client.*
 import io.ktor.client.engine.java.*
 import io.ktor.client.plugins.*
@@ -51,18 +51,18 @@ class WorldHostServer(val config: Config) {
     val receivedFriendRequests = LockedObject(mutableMapOf<UUID, MutableSet<UUID>>())
 
     suspend fun run() = coroutineScope {
-        logger.info("Starting world-host-server $SERVER_VERSION with {}", config)
+        logger.info { "Starting world-host-server $SERVER_VERSION with $config" }
         EXTERNAL_SERVERS?.forEach { proxy ->
             if (proxy.addr == null) return@forEach
             launch {
-                logger.info("Attempting to ping {}, {}", proxy.addr, proxy.port)
+                logger.info { "Attempting to ping ${proxy.addr}, ${proxy.port}" }
                 try {
                     aSocket(SelectorManager(Dispatchers.IO)).tcp().connect(proxy.addr, proxy.port).close()
                 } catch (e: Exception) {
-                    logger.warn("Failed to ping {}, {}", proxy.addr, proxy.port, e)
+                    logger.warn(e) { "Failed to ping ${proxy.addr}, ${proxy.port}" }
                     return@launch
                 }
-                logger.info("Successfully pinged {}, {}", proxy.addr, proxy.port)
+                logger.info { "Successfully pinged ${proxy.addr}, ${proxy.port}" }
             }
         }
         launch { runAnalytics() }

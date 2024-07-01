@@ -1,7 +1,7 @@
 package io.github.gaming32.worldhostserver
 
 import io.github.gaming32.worldhostserver.serialization.FieldedSerializer
-import io.github.oshai.KotlinLogging
+import io.github.oshai.kotlinlogging.KotlinLogging
 import java.net.InetAddress
 import java.nio.ByteBuffer
 import java.util.*
@@ -32,9 +32,9 @@ sealed interface WorldHostS2CMessage : FieldedSerializer {
 
         init {
             if (isPunchProtocol && (host.isNotEmpty() || port != 0)) {
-                logger.warn(
+                logger.warn {
                     "WorldHostS2CMessage.OnlineGame constructed with isPunchProtocol, but host and port are non-empty"
-                )
+                }
             }
         }
     }

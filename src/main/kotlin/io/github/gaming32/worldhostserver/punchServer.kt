@@ -1,7 +1,7 @@
 package io.github.gaming32.worldhostserver
 
 import io.github.gaming32.worldhostserver.util.cast
-import io.github.oshai.KotlinLogging
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
 import io.ktor.util.network.*
@@ -38,15 +38,15 @@ class PunchClient(
 
 suspend fun WorldHostServer.runPunchServer() = coroutineScope {
     if (config.punchPort == 0) {
-        logger.info("Punch server disabled by request")
+        logger.info { "Punch server disabled by request" }
         return@coroutineScope
     }
-    logger.info("Starting punch server")
+    logger.info { "Starting punch server" }
     aSocket(SelectorManager(Dispatchers.IO)).tcp().bind(port = config.punchPort).use { serverSocket ->
-        logger.info("Started punch server on ${serverSocket.localAddress}")
+        logger.info { "Started punch server on ${serverSocket.localAddress}" }
         while (true) {
             val punchSocket = serverSocket.accept()
-            logger.info("Accepted punch connection from {}", punchSocket.remoteAddress)
+            logger.info { "Accepted punch connection from ${punchSocket.remoteAddress}" }
             launch {
                 var key: Pair<ConnectionId, ConnectionId>? = null
                 try {
@@ -79,7 +79,7 @@ suspend fun WorldHostServer.runPunchServer() = coroutineScope {
                         otherClient.sendHostPort(client.address, connectPort, localPort)
                     }
                 } catch (e: Exception) {
-                    logger.error("Error in punch socket handling", e)
+                    logger.error(e) { "Error in punch socket handling" }
                     punchSocket.close()
                 } finally {
                     if (key != null) {

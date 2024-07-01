@@ -9,7 +9,7 @@ plugins {
 group = "io.github.gaming32"
 version = "0.4.4"
 
-val ktorVersion = "2.3.10"
+val ktorVersion = "2.3.12"
 
 application {
     mainClass.set("io.github.gaming32.worldhostserver.MainKt")
@@ -30,7 +30,7 @@ repositories {
 dependencies {
     implementation("org.apache.logging.log4j:log4j-slf4j2-impl:2.23.1")
     implementation("org.apache.logging.log4j:log4j-core:2.23.1")
-    implementation("io.github.oshai:kotlin-logging-jvm:4.0.0-beta-22")
+    implementation("io.github.oshai:kotlin-logging-jvm:5.1.0")
 
     implementation("io.ktor:ktor-network:$ktorVersion")
     implementation("io.ktor:ktor-client-core:$ktorVersion")

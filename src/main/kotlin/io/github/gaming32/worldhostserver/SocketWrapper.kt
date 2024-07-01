@@ -1,7 +1,7 @@
 package io.github.gaming32.worldhostserver
 
 import io.github.gaming32.worldhostserver.serialization.toByteBuf
-import io.github.oshai.KotlinLogging
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.network.sockets.*
 import io.ktor.utils.io.*
 import kotlinx.coroutines.sync.Mutex
@@ -50,7 +50,7 @@ class SocketWrapper(socket: Socket) {
         try {
             sendMessage(WorldHostS2CMessage.Error(message, true))
         } catch (e: Exception) {
-            logger.warn("Error in critical error sending (message \"{}\")", message, e)
+            logger.warn(e) { "Error in critical error sending (message \"$message\")" }
         }
         close()
     }

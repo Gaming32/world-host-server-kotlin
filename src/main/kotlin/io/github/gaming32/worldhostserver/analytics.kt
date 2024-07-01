@@ -1,6 +1,6 @@
 package io.github.gaming32.worldhostserver
 
-import io.github.oshai.KotlinLogging
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import java.io.File
@@ -11,18 +11,18 @@ private val logger = KotlinLogging.logger {}
 
 suspend fun WorldHostServer.runAnalytics() = coroutineScope {
     if (!config.analyticsTime.isPositive()) {
-        logger.info("Analytics disabled by request")
+        logger.info { "Analytics disabled by request" }
         return@coroutineScope
     }
-    logger.info("Starting analytics system to update every ${config.analyticsTime}")
+    logger.info { "Starting analytics system to update every ${config.analyticsTime}" }
     val file = File("analytics.csv")
     while (true) {
         delay(config.analyticsTime)
         if (file.length() <= 0) {
-            logger.info("Creating new analytics.csv")
+            logger.info { "Creating new analytics.csv" }
             file.writeText("timestamp,total,countries\n")
         }
-        logger.info("Updating analytics.csv")
+        logger.info { "Updating analytics.csv" }
         val timestamp = OffsetDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME)
         var total = 0
         val byCountry = mutableMapOf<String, Int>()

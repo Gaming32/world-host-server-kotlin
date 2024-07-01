@@ -2,45 +2,43 @@ package io.github.gaming32.worldhostserver
 
 import io.github.gaming32.worldhostserver.ConnectionId.Companion.toConnectionId
 import io.github.gaming32.worldhostserver.util.cast
-import io.github.oshai.KotlinLogging
+import io.github.gaming32.worldhostserver.util.isSimpleDisconnectException
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
-import io.ktor.util.network.*
 import io.ktor.utils.io.*
-import io.ktor.utils.io.core.*
-import io.ktor.utils.io.errors.*
-import io.ktor.utils.io.streams.*
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
 import org.intellij.lang.annotations.Language
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.net.InetSocketAddress
-import java.util.*
-import kotlin.io.use
 
 private val logger = KotlinLogging.logger {}
 
 suspend fun WorldHostServer.runProxyServer() = coroutineScope {
     if (config.baseAddr == null) {
-        logger.info("Proxy server disabled by request")
+        logger.info { "Proxy server disabled by request" }
         return@coroutineScope
     }
     if (EXTERNAL_SERVERS?.any { it.addr == null } == false) {
-        logger.info(
+        logger.info {
             "Same-process proxy server is enabled, but it is not present in external_proxies.json. This means"
-        )
-        logger.info(
+        }
+        logger.info {
             "that it will be used only as a fallback if the client's best choice for external proxy goes down."
-        )
+        }
     }
-    logger.info("Starting proxy server")
+    logger.info { "Starting proxy server" }
     aSocket(SelectorManager(Dispatchers.IO)).tcp().bind(port = config.inJavaPort).use { serverSocket ->
         var nextConnectionId = 0L
-        logger.info("Started proxy server on {}", serverSocket.localAddress)
+        logger.info { "Started proxy server on ${serverSocket.localAddress}" }
         while (true) {
             val proxySocket = serverSocket.accept()
-            logger.info("Accepted proxy connection from {}", proxySocket.remoteAddress)
+            logger.info { "Accepted proxy connection from ${proxySocket.remoteAddress}" }
             val connectionId = nextConnectionId++
             launch {
                 var connection: Connection? = null
@@ -67,23 +65,30 @@ suspend fun WorldHostServer.runProxyServer() = coroutineScope {
                         return@launch disconnect(sendChannel, nextState, "Invalid ConnectionId: ${e.localizedMessage}")
                     }
 
-                    connection = whConnections.byId(destCid) ?:
-                        return@launch disconnect(sendChannel, nextState, "Couldn't find that server")
+                    connection = whConnections.byId(destCid) ?: return@launch disconnect(
+                        sendChannel,
+                        nextState,
+                        "Couldn't find that server"
+                    )
 
                     proxyConnections.withLock {
                         this[connectionId] = Pair(connection!!.id, sendChannel)
                     }
-                    connection.socket.sendMessage(WorldHostS2CMessage.ProxyConnect(
-                        connectionId,
-                        proxySocket.remoteAddress.toJavaAddress().cast<InetSocketAddress>().address
-                    ))
-                    connection.socket.sendMessage(WorldHostS2CMessage.ProxyC2SPacket(
-                        connectionId,
-                        ByteArrayOutputStream().apply {
-                            writeVarInt(handshakeData.size)
-                            write(handshakeData)
-                        }.toByteArray()
-                    ))
+                    connection.socket.sendMessage(
+                        WorldHostS2CMessage.ProxyConnect(
+                            connectionId,
+                            proxySocket.remoteAddress.toJavaAddress().cast<InetSocketAddress>().address
+                        )
+                    )
+                    connection.socket.sendMessage(
+                        WorldHostS2CMessage.ProxyC2SPacket(
+                            connectionId,
+                            ByteArrayOutputStream().apply {
+                                writeVarInt(handshakeData.size)
+                                write(handshakeData)
+                            }.toByteArray()
+                        )
+                    )
                     val buffer = ByteArray(64 * 1024)
                     proxyLoop@ while (!sendChannel.isClosedForWrite) {
                         if (!connection!!.open) {
@@ -107,24 +112,23 @@ suspend fun WorldHostServer.runProxyServer() = coroutineScope {
                                 connection = whConnections.byId(destCid)
                             } while (connection == null || !connection.open)
                         }
-                        connection.socket.sendMessage(WorldHostS2CMessage.ProxyC2SPacket(
-                            connectionId, buffer.copyOf(n)
-                        ))
+                        connection.socket.sendMessage(
+                            WorldHostS2CMessage.ProxyC2SPacket(
+                                connectionId, buffer.copyOf(n)
+                            )
+                        )
                     }
                 } catch (_: ClosedReceiveChannelException) {
                 } catch (e: Exception) {
-                    if (
-                        e !is IOException ||
-                        e.message != "An existing connection was forcibly closed by the remote host"
-                    ) {
-                        logger.error("An error occurred in proxy client handling", e)
+                    if (!e.isSimpleDisconnectException) {
+                        logger.error(e) { "An error occurred in proxy client handling" }
                     }
                 } finally {
                     proxyConnections.withLock { this -= connectionId }
                     if (connection?.open == true) {
                         connection.socket.sendMessage(WorldHostS2CMessage.ProxyDisconnect(connectionId))
                     }
-                    logger.info("Proxy connection closed")
+                    logger.info { "Proxy connection closed" }
                 }
             }
         }

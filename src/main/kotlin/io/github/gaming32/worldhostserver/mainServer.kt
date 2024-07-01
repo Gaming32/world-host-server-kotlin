@@ -11,11 +11,11 @@ import io.github.gaming32.worldhostserver.ratelimit.RateLimiter
 import io.github.gaming32.worldhostserver.util.COMPRESSED_GEOLITE_CITY_FILES
 import io.github.gaming32.worldhostserver.util.IpInfoMap
 import io.github.gaming32.worldhostserver.util.MinecraftCrypt
-import io.github.oshai.KotlinLogging
+import io.github.gaming32.worldhostserver.util.isSimpleDisconnectException
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
 import io.ktor.utils.io.*
-import io.ktor.utils.io.errors.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.serialization.ExperimentalSerializationApi
@@ -26,7 +26,6 @@ import java.math.BigInteger
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Proxy
-import java.net.SocketException
 import java.security.KeyPair
 import java.security.SecureRandom
 import java.util.*
@@ -69,21 +68,21 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
 
     @OptIn(ExperimentalTime::class)
     val ipInfoMap = run {
-        logger.info("Downloading IP info map...")
+        logger.info { "Downloading IP info map..." }
         val (ipInfoMap, time) = measureTimedValue {
             IpInfoMap.loadFromCompressedGeoliteCityFiles(*COMPRESSED_GEOLITE_CITY_FILES.toTypedArray())
         }
-        logger.info("Downloaded IP info map in $time")
+        logger.info { "Downloaded IP info map in $time" }
         ipInfoMap
     }
 
     val sessionService = YggdrasilAuthenticationService(Proxy.NO_PROXY).createMinecraftSessionService()
     val keyPair = run {
-        logger.info("Generating key pair")
+        logger.info { "Generating key pair" }
         MinecraftCrypt.generateKeyPair()
     }
 
-    logger.info("Starting WH server on port {}", config.port)
+    logger.info { "Starting WH server on port ${config.port}" }
     val rateLimiter = RateLimiter<InetAddress>(
         RateLimitBucket("perMinute", 20, 60.seconds),
         RateLimitBucket("perHour", 400, 60.minutes),
@@ -95,7 +94,7 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
         }
     }
     aSocket(SelectorManager(Dispatchers.IO)).tcp().bind(port = config.port).use { serverSocket ->
-        logger.info("Started WH server on {}", serverSocket.localAddress)
+        logger.info { "Started WH server on ${serverSocket.localAddress}" }
         while (true) {
             val clientSocket = serverSocket.accept()
             launch {
@@ -107,14 +106,14 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                     try {
                         rateLimiter.ratelimit(addrObj.address)
                     } catch (rateLimited: RateLimited) {
-                        logger.warn("$remoteAddr is reconnecting too quickly! ${rateLimited.message}")
+                        logger.warn { "$remoteAddr is reconnecting too quickly! ${rateLimited.message}" }
                         return@launch socket.closeError("Ratelimit exceeded! ${rateLimited.message}")
                     }
 
                     val protocolVersion = try {
                         socket.readChannel.readInt()
                     } catch (_: ClosedReceiveChannelException) {
-                        logger.info("Received a ping connection (immediate disconnect)")
+                        logger.info { "Received a ping connection (immediate disconnect)" }
                         return@launch
                     }
 
@@ -134,11 +133,11 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                         }
                         Connection(ids, remoteAddr, socket, protocolVersion)
                     } catch (e: Exception) {
-                        logger.warn("Invalid handshake from {}", remoteAddr, e)
+                        logger.warn(e) { "Invalid handshake from $remoteAddr" }
                         return@launch socket.closeError("Invalid handshake: $e")
                     }!!
 
-                    logger.info("Connection opened: {}", connection)
+                    logger.info { "Connection opened: $connection" }
 
                     socket.sendMessage(WorldHostS2CMessage.ConnectionInfo(
                         connection.id,
@@ -150,10 +149,11 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                     ))
 
                     if (protocolVersion < PROTOCOL_VERSION) {
-                        logger.warn(
-                            "Client {} has an older client! Client version: {}. Server version: {}.",
-                            connection.id, protocolVersion, PROTOCOL_VERSION
-                        )
+                        logger.warn {
+                            "Client ${connection.id} has an older client! " +
+                                "Client version: $protocolVersion. " +
+                                "Server version: $PROTOCOL_VERSION."
+                        }
                         socket.sendMessage(WorldHostS2CMessage.OutdatedWorldHost(VERSION_NAME))
                     }
 
@@ -189,13 +189,13 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                         }
                         val time = System.currentTimeMillis()
                         if (time - start > 500) {
-                            logger.warn("ID ${connection.id} used twice. Disconnecting $connection.")
+                            logger.warn { "ID ${connection.id} used twice. Disconnecting $connection." }
                             return@launch socket.closeError("That connection ID is taken.")
                         }
                         yield()
                     }
 
-                    logger.info("There are {} open connections.", whConnections.size)
+                    logger.info { "There are ${whConnections.size} open connections." }
 
                     run {
                         val received = receivedFriendRequests.withLock { remove(connection.userUuid) } ?: return@run
@@ -222,35 +222,31 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                                 // It was critical enough to close for
                                 throw e
                             }
-                            logger.error("Error in client WH client handling", e)
+                            logger.error(e) { "Error in WH client handling" }
                             socket.sendMessage(WorldHostS2CMessage.Error(e.message ?: e.javaClass.simpleName))
                             continue
                         }
-                        if (logger.isDebugEnabled) {
-                            logger.debug("Received message {}", message)
-                        }
+                        logger.debug { "Received message $message" }
                         with(message) {
                             handle(this@runMainServer, connection)
                         }
                     }
+                } catch (_: ClosedReceiveChannelException) {
                 } catch (e: Exception) {
                     // Shouldn't this be throwing a ClosedReceiveChannelException instead?
-                    val isSimpleDisconnect =
-                        (e is IOException && e.message == "An existing connection was forcibly closed by the remote host") ||
-                            (e is SocketException && e.message == "Connection reset")
-                    if (!isSimpleDisconnect) {
-                        logger.error("A critical error occurred in WH client handling", e)
+                    if (!e.isSimpleDisconnectException) {
+                        logger.error(e) { "A critical error occurred in WH client handling" }
                     }
                 } finally {
                     socket.close()
                     if (connection != null) {
                         connection.open = false
-                        logger.info("Connection closed: {}", connection)
+                        logger.info { "Connection closed: $connection" }
                         whConnections.remove(connection)
                         with(WorldHostC2SMessage.ClosedWorld(connection.openToFriends.toList())) {
                             handle(this@runMainServer, connection)
                         }
-                        logger.info("There are {} open connections.", whConnections.size)
+                        logger.info { "There are ${whConnections.size} open connections." }
                     }
                 }
             }
@@ -300,7 +296,7 @@ private suspend fun performHandshake(
                     sessionService.hasJoinedServer(username, authKey, remoteAddress)
                 }
             } catch (_: AuthenticationUnavailableException) {
-                logger.warn("Authentication servers are down. Unable to verify $username. Will allow anyway.")
+                logger.warn { "Authentication servers are down. Unable to verify $username. Will allow anyway." }
                 ProfileResult(GameProfile(uuid, username))
             }
             if (profile == null) {
