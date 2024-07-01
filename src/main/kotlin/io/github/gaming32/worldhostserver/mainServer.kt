@@ -31,7 +31,6 @@ import java.security.SecureRandom
 import java.util.*
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
-import kotlin.time.ExperimentalTime
 import kotlin.time.measureTimedValue
 
 const val PROTOCOL_VERSION = 6
@@ -66,7 +65,6 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
         )
     }
 
-    @OptIn(ExperimentalTime::class)
     val ipInfoMap = run {
         logger.info { "Downloading IP info map..." }
         val (ipInfoMap, time) = measureTimedValue {

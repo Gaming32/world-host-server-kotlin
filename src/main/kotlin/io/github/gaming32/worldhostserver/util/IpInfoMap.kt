@@ -9,7 +9,6 @@ import java.math.BigInteger
 import java.net.InetAddress
 import java.net.URL
 import java.util.zip.GZIPInputStream
-import kotlin.time.ExperimentalTime
 import kotlin.time.measureTimedValue
 
 val COMPRESSED_GEOLITE_CITY_FILES = listOf(
@@ -138,7 +137,6 @@ class IpInfoMap(
     }
 }
 
-@OptIn(ExperimentalTime::class)
 fun main() {
     fun printMemory() {
         System.gc()
