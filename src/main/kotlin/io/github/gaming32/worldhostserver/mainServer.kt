@@ -158,10 +158,10 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                     }
 
                     if (protocolVersion < NEW_AUTH_PROTOCOL && connection.userUuid.version() == 4) {
-                        socket.sendMessage(WorldHostS2CMessage.Warning(
+                        // Using Error because Warning was only added in this protocol version
+                        socket.sendMessage(WorldHostS2CMessage.Error(
                             "You are using an old insecure version of World Host. It is highly recommended that " +
-                                "you update to ${PROTOCOL_VERSION_MAP[NEW_AUTH_PROTOCOL]} or later.",
-                            important = true
+                                "you update to ${PROTOCOL_VERSION_MAP[NEW_AUTH_PROTOCOL]} or later."
                         ))
                     }
 
