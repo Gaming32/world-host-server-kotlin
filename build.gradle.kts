@@ -1,13 +1,14 @@
+import net.raphimc.classtokenreplacer.task.ReplaceTokensTask
+
 plugins {
     application
-    kotlin("jvm") version "1.8.21"
-    kotlin("plugin.serialization") version "1.8.21"
-    id("io.ktor.plugin") version "2.1.1" // It builds fat JARs
-    id("net.kyori.blossom") version "1.3.1"
+    kotlin("jvm") version "2.0.0"
+    kotlin("plugin.serialization") version "2.0.0"
+    id("net.raphimc.class-token-replacer") version "1.1.2"
 }
 
 group = "io.github.gaming32"
-version = "0.4.4"
+version = "0.4.5"
 
 val ktorVersion = "2.3.12"
 
@@ -47,26 +48,45 @@ dependencies {
     testImplementation(kotlin("test"))
 }
 
-blossom {
-    replaceToken("\\\${version}", project.version, "src/main/kotlin/io/github/gaming32/worldhostserver/versionHolder.kt")
+sourceSets {
+    main {
+        classTokenReplacer {
+            property("\${version}", project.version)
+        }
+    }
 }
 
 kotlin {
     jvmToolchain(17)
 }
 
-tasks {
-    shadowJar {
-        mergeServiceFiles()
-    }
-
-    compileKotlin {
-        compilerOptions {
-            freeCompilerArgs.add("-opt-in=kotlin.ExperimentalStdlibApi")
-        }
-    }
-
-    test {
-        useJUnitPlatform()
+tasks.compileKotlin {
+    compilerOptions {
+        freeCompilerArgs.add("-opt-in=kotlin.ExperimentalStdlibApi")
     }
 }
+
+tasks.test {
+    useJUnitPlatform()
+}
+
+val fatJar by tasks.registering(Jar::class) {
+    archiveClassifier = "fat"
+
+    val replaceTask = tasks.getByName<ReplaceTokensTask>(
+        sourceSets.main.get().getTaskName("replace", "tokens")
+    )
+    dependsOn(replaceTask)
+    from(sourceSets.main.get().output, replaceTask.outputDir)
+    exclude {
+        val modified = it.relativePath.getFile(replaceTask.outputDir.get().asFile)
+        modified != it.file && modified.isFile
+    }
+
+    from(configurations.runtimeClasspath.get().files.map { if (it.isDirectory) it else zipTree(it) })
+    exclude("META-INF/versions/9/module-info.class", "module-info.class")
+    exclude("META-INF/LICENSE", "META-INF/NOTICE", "META-INF/DEPENDENCIES")
+    exclude("META-INF/LICENSE.txt", "META-INF/NOTICE.txt")
+    duplicatesStrategy = DuplicatesStrategy.WARN
+}
+tasks.assemble.get().dependsOn(fatJar)

@@ -1,3 +1,5 @@
+@file:Suppress("MayBeConstant")
+
 package io.github.gaming32.worldhostserver
 
-const val SERVER_VERSION = "\${version}"
+val SERVER_VERSION = "\${version}"
