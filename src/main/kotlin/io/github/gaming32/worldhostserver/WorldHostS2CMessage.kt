@@ -39,14 +39,18 @@ sealed interface WorldHostS2CMessage : FieldedSerializer {
         }
     }
 
-    data class FriendRequest(val fromUser: UUID) : WorldHostS2CMessage {
+    data class FriendRequest(val fromUser: UUID, val security: SecurityLevel) : WorldHostS2CMessage {
         override val packetId: Byte get() = 3
-        override val fields = listOf(fromUser)
+        override val fields = listOf(fromUser, security)
     }
 
-    data class PublishedWorld(val user: UUID, val connectionId: ConnectionId) : WorldHostS2CMessage {
+    data class PublishedWorld(
+        val user: UUID,
+        val connectionId: ConnectionId,
+        val security: SecurityLevel
+    ) : WorldHostS2CMessage {
         override val packetId: Byte get() = 4
-        override val fields = listOf(user, connectionId)
+        override val fields = listOf(user, connectionId, security)
     }
 
     data class ClosedWorld(val user: UUID) : WorldHostS2CMessage {
@@ -54,14 +58,22 @@ sealed interface WorldHostS2CMessage : FieldedSerializer {
         override val fields = listOf(user)
     }
 
-    data class RequestJoin(val user: UUID, val connectionId: ConnectionId) : WorldHostS2CMessage {
+    data class RequestJoin(
+        val user: UUID,
+        val connectionId: ConnectionId,
+        val security: SecurityLevel
+    ) : WorldHostS2CMessage {
         override val packetId: Byte get() = 6
-        override val fields = listOf(user, connectionId)
+        override val fields = listOf(user, connectionId, security)
     }
 
-    data class QueryRequest(val friend: UUID, val connectionId: ConnectionId) : WorldHostS2CMessage {
+    data class QueryRequest(
+        val friend: UUID,
+        val connectionId: ConnectionId,
+        val security: SecurityLevel
+    ) : WorldHostS2CMessage {
         override val packetId: Byte get() = 7
-        override val fields = listOf(friend, connectionId)
+        override val fields = listOf(friend, connectionId, security)
     }
 
     @Deprecated(

@@ -34,6 +34,7 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTimedValue
 
 const val PROTOCOL_VERSION = 6
+const val NEW_AUTH_PROTOCOL = 6
 val SUPPORTED_PROTOCOLS = 2..PROTOCOL_VERSION
 val PROTOCOL_VERSION_MAP = mapOf(
     2 to "0.3.2",
@@ -44,7 +45,6 @@ val PROTOCOL_VERSION_MAP = mapOf(
 )
 val VERSION_NAME = PROTOCOL_VERSION_MAP[PROTOCOL_VERSION]!!
 
-private const val NEW_AUTH_PROTOCOL = 6
 private const val KEY_PREFIX = 0xFAFA0000.toInt()
 
 @OptIn(ExperimentalSerializationApi::class)
@@ -155,7 +155,7 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                         socket.sendMessage(WorldHostS2CMessage.OutdatedWorldHost(VERSION_NAME))
                     }
 
-                    if (protocolVersion < NEW_AUTH_PROTOCOL && connection.userUuid.version() == 4) {
+                    if (connection.securityLevel == SecurityLevel.INSECURE && connection.userUuid.version() == 4) {
                         // Using Error because Warning was only added in this protocol version
                         socket.sendMessage(WorldHostS2CMessage.Error(
                             "You are using an old insecure version of World Host. It is highly recommended that " +
@@ -199,7 +199,9 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                         val received = receivedFriendRequests.withLock { remove(connection.userUuid) } ?: return@run
                         rememberedFriendRequests.withLock {
                             received.forEach { receivedFrom ->
-                                socket.sendMessage(WorldHostS2CMessage.FriendRequest(receivedFrom))
+                                socket.sendMessage(WorldHostS2CMessage.FriendRequest(
+                                    receivedFrom, SecurityLevel.from(receivedFrom)
+                                ))
                                 this[receivedFrom]?.let {
                                     it -= connection.userUuid
                                     if (it.isEmpty()) {

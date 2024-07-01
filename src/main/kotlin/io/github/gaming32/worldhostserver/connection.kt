@@ -15,6 +15,8 @@ data class Connection(
     var open: Boolean = true,
     val openToFriends: MutableSet<UUID> = mutableSetOf()
 ) {
+    val securityLevel get() = SecurityLevel.from(userUuid, secureAuth = protocolVersion >= NEW_AUTH_PROTOCOL)
+
     constructor(ids: IdsPair, address: String, session: SocketWrapper, protocolVersion: Int) :
         this(ids.connectionId, address, ids.userId, session, protocolVersion)
 
