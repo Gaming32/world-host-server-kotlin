@@ -29,9 +29,10 @@ repositories {
 }
 
 dependencies {
+    implementation("org.slf4j:slf4j-api:2.0.13")
     implementation("org.apache.logging.log4j:log4j-slf4j2-impl:2.23.1")
     implementation("org.apache.logging.log4j:log4j-core:2.23.1")
-    implementation("io.github.oshai:kotlin-logging-jvm:5.1.0")
+    implementation("io.github.oshai:kotlin-logging-jvm:7.0.0")
 
     implementation("io.ktor:ktor-network:$ktorVersion")
     implementation("io.ktor:ktor-client-core:$ktorVersion")
