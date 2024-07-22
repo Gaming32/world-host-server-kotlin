@@ -127,7 +127,7 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                                 ConnectionId(socket.readChannel.readLong())
                             )
                         } else {
-                            performHandshake(socket, sessionService, keyPair, addrObj.address)
+                            performHandshake(socket, sessionService, keyPair)
                         }
                         Connection(ids, remoteAddr, socket, protocolVersion)
                     } catch (e: Exception) {
@@ -257,8 +257,7 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
 private suspend fun performHandshake(
     socket: SocketWrapper,
     sessionService: MinecraftSessionService,
-    keyPair: KeyPair,
-    remoteAddress: InetAddress
+    keyPair: KeyPair
 ): IdsPair {
     socket.writeChannel.writeInt(KEY_PREFIX)
     socket.writeChannel.flush()
@@ -293,7 +292,7 @@ private suspend fun performHandshake(
         4 -> {
             val profile = try {
                 withContext(Dispatchers.IO) {
-                    sessionService.hasJoinedServer(username, authKey, remoteAddress)
+                    sessionService.hasJoinedServer(username, authKey, null)
                 }
             } catch (_: AuthenticationUnavailableException) {
                 logger.warn { "Authentication servers are down. Unable to verify $username. Will allow anyway." }
