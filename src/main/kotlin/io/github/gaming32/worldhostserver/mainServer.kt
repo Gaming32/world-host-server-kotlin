@@ -29,6 +29,7 @@ import java.net.Proxy
 import java.security.KeyPair
 import java.security.SecureRandom
 import java.util.*
+import javax.crypto.Cipher
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTimedValue
@@ -55,7 +56,12 @@ val EXTERNAL_SERVERS = File("external_proxies.json")
 
 private val logger = KotlinLogging.logger {}
 
-data class IdsPair(val userId: UUID, val connectionId: ConnectionId)
+private data class HandshakeResult(
+    val userId: UUID,
+    val connectionId: ConnectionId,
+    val decryptCipher: Cipher?,
+    val encryptCipher: Cipher?
+)
 
 suspend fun WorldHostServer.runMainServer() = coroutineScope {
     if (!SUPPORTED_PROTOCOLS.all(PROTOCOL_VERSION_MAP::containsKey)) {
@@ -121,15 +127,24 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
 
                     @Suppress("UNNECESSARY_NOT_NULL_ASSERTION") // I have several questions
                     connection = try {
-                        val ids = if (protocolVersion < NEW_AUTH_PROTOCOL) {
-                            IdsPair(
+                        val handshakeResult = if (protocolVersion < NEW_AUTH_PROTOCOL) {
+                            HandshakeResult(
                                 socket.readChannel.readUuid(),
-                                ConnectionId(socket.readChannel.readLong())
+                                ConnectionId(socket.readChannel.readLong()),
+                                null, null
                             )
                         } else {
                             performHandshake(socket, sessionService, keyPair)
                         }
-                        Connection(ids, remoteAddr, socket, protocolVersion)
+                        Connection(
+                            handshakeResult.connectionId,
+                            remoteAddr,
+                            handshakeResult.userId,
+                            socket,
+                            protocolVersion,
+                            handshakeResult.decryptCipher,
+                            handshakeResult.encryptCipher
+                        )
                     } catch (e: Exception) {
                         logger.warn(e) { "Invalid handshake from $remoteAddr" }
                         return@launch socket.closeError("Invalid handshake: $e")
@@ -137,7 +152,7 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
 
                     logger.info { "Connection opened: $connection" }
 
-                    socket.sendMessage(WorldHostS2CMessage.ConnectionInfo(
+                    connection.sendMessage(WorldHostS2CMessage.ConnectionInfo(
                         connection.id,
                         config.baseAddr ?: "",
                         config.exJavaPort,
@@ -152,12 +167,12 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                                 "Client version: $protocolVersion. " +
                                 "Server version: $PROTOCOL_VERSION."
                         }
-                        socket.sendMessage(WorldHostS2CMessage.OutdatedWorldHost(VERSION_NAME))
+                        connection.sendMessage(WorldHostS2CMessage.OutdatedWorldHost(VERSION_NAME))
                     }
 
                     if (connection.securityLevel == SecurityLevel.INSECURE && connection.userUuid.version() == 4) {
                         // Using Error because Warning was only added in this protocol version
-                        socket.sendMessage(WorldHostS2CMessage.Error(
+                        connection.sendMessage(WorldHostS2CMessage.Error(
                             "You are using an old insecure version of World Host. It is highly recommended that " +
                                 "you update to ${PROTOCOL_VERSION_MAP[NEW_AUTH_PROTOCOL]} or later."
                         ))
@@ -171,7 +186,7 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                             ?.let { proxy ->
                                 if (proxy.addr == null) return@let
                                 connection.externalProxy = proxy
-                                socket.sendMessage(WorldHostS2CMessage.ExternalProxyServer(
+                                connection.sendMessage(WorldHostS2CMessage.ExternalProxyServer(
                                     proxy.addr, proxy.port, proxy.baseAddr, proxy.mcPort
                                 ))
                             }
@@ -199,7 +214,7 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                         val received = receivedFriendRequests.withLock { remove(connection.userUuid) } ?: return@run
                         rememberedFriendRequests.withLock {
                             received.forEach { receivedFrom ->
-                                socket.sendMessage(WorldHostS2CMessage.FriendRequest(
+                                connection.sendMessage(WorldHostS2CMessage.FriendRequest(
                                     receivedFrom, SecurityLevel.from(receivedFrom)
                                 ))
                                 this[receivedFrom]?.let {
@@ -214,7 +229,7 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
 
                     while (true) {
                         val message = try {
-                            socket.recvMessage()
+                            connection.recvMessage()
                         } catch (e: ClosedReceiveChannelException) {
                             break
                         } catch (e: Exception) {
@@ -223,7 +238,7 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                                 throw e
                             }
                             logger.error(e) { "Error in WH client handling" }
-                            socket.sendMessage(WorldHostS2CMessage.Error(e.message ?: e.javaClass.simpleName))
+                            connection.sendMessage(WorldHostS2CMessage.Error(e.message ?: e.javaClass.simpleName))
                             continue
                         }
                         logger.debug { "Received message $message" }
@@ -258,7 +273,7 @@ private suspend fun performHandshake(
     socket: SocketWrapper,
     sessionService: MinecraftSessionService,
     keyPair: KeyPair
-): IdsPair {
+): HandshakeResult {
     socket.writeChannel.writeInt(KEY_PREFIX)
     socket.writeChannel.flush()
 
@@ -310,7 +325,11 @@ private suspend fun performHandshake(
         throw IllegalStateException("Mismatched UUID. Client said $uuid. Expected $expectedUuid")
     }
 
-    return IdsPair(uuid, connectionId)
+    return HandshakeResult(
+        uuid, connectionId,
+        MinecraftCrypt.getCipher(Cipher.DECRYPT_MODE, secretKey),
+        MinecraftCrypt.getCipher(Cipher.ENCRYPT_MODE, secretKey)
+    )
 }
 
 private suspend fun ByteReadChannel.readString() =

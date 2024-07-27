@@ -3,6 +3,7 @@ package io.github.gaming32.worldhostserver.util
 import java.security.*
 import javax.crypto.Cipher
 import javax.crypto.SecretKey
+import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
 object MinecraftCrypt {
@@ -21,12 +22,16 @@ object MinecraftCrypt {
 
     fun decryptByteToSecretKey(key: PrivateKey, data: ByteArray) = SecretKeySpec(decryptUsingKey(key, data), "AES")
 
-    fun decryptUsingKey(key: Key, data: ByteArray) = cipherData(2, key, data)
+    fun decryptUsingKey(key: Key, data: ByteArray) = cipherData(Cipher.DECRYPT_MODE, key, data)
 
     private fun cipherData(mode: Int, key: Key, data: ByteArray): ByteArray =
         setupCipher(mode, key.algorithm, key).doFinal(data)
 
     private fun setupCipher(index: Int, algorithm: String, key: Key) = Cipher.getInstance(algorithm).apply {
         init(index, key)
+    }
+
+    fun getCipher(mode: Int, key: Key): Cipher = Cipher.getInstance("AES/CFB8/NoPadding").apply {
+        init(mode, key, IvParameterSpec(key.encoded))
     }
 }

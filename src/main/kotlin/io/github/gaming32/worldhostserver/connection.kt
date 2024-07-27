@@ -3,6 +3,7 @@ package io.github.gaming32.worldhostserver
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.*
+import javax.crypto.Cipher
 
 data class Connection(
     val id: ConnectionId,
@@ -10,6 +11,8 @@ data class Connection(
     val userUuid: UUID,
     val socket: SocketWrapper,
     val protocolVersion: Int,
+    val decryptCipher: Cipher?,
+    val encryptCipher: Cipher?,
     var country: String? = null,
     var externalProxy: ExternalProxy? = null,
     var open: Boolean = true,
@@ -17,12 +20,13 @@ data class Connection(
 ) {
     val securityLevel get() = SecurityLevel.from(userUuid, secureAuth = protocolVersion >= NEW_AUTH_PROTOCOL)
 
-    constructor(ids: IdsPair, address: String, session: SocketWrapper, protocolVersion: Int) :
-        this(ids.connectionId, address, ids.userId, session, protocolVersion)
-
     override fun toString(): String {
         return "Connection(id=$id, address=$address, userUuid=$userUuid)"
     }
+
+    suspend fun recvMessage() = socket.recvMessage(decryptCipher)
+
+    suspend fun sendMessage(message: WorldHostS2CMessage) = socket.sendMessage(message, encryptCipher)
 }
 
 class ConnectionSetSync {

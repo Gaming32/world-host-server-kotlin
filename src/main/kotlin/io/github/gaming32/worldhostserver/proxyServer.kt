@@ -74,13 +74,13 @@ suspend fun WorldHostServer.runProxyServer() = coroutineScope {
                     proxyConnections.withLock {
                         this[connectionId] = Pair(connection!!.id, sendChannel)
                     }
-                    connection.socket.sendMessage(
+                    connection.sendMessage(
                         WorldHostS2CMessage.ProxyConnect(
                             connectionId,
                             proxySocket.remoteAddress.toJavaAddress().cast<InetSocketAddress>().address
                         )
                     )
-                    connection.socket.sendMessage(
+                    connection.sendMessage(
                         WorldHostS2CMessage.ProxyC2SPacket(
                             connectionId,
                             ByteArrayOutputStream().apply {
@@ -112,7 +112,7 @@ suspend fun WorldHostServer.runProxyServer() = coroutineScope {
                                 connection = whConnections.byId(destCid)
                             } while (connection == null || !connection.open)
                         }
-                        connection.socket.sendMessage(
+                        connection.sendMessage(
                             WorldHostS2CMessage.ProxyC2SPacket(
                                 connectionId, buffer.copyOf(n)
                             )
@@ -126,7 +126,7 @@ suspend fun WorldHostServer.runProxyServer() = coroutineScope {
                 } finally {
                     proxyConnections.withLock { this -= connectionId }
                     if (connection?.open == true) {
-                        connection.socket.sendMessage(WorldHostS2CMessage.ProxyDisconnect(connectionId))
+                        connection.sendMessage(WorldHostS2CMessage.ProxyDisconnect(connectionId))
                     }
                     logger.info { "Proxy connection closed" }
                 }

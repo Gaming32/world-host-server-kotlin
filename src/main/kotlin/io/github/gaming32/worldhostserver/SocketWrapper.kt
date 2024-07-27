@@ -7,6 +7,7 @@ import io.ktor.utils.io.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.nio.ByteBuffer
+import javax.crypto.Cipher
 
 private val logger = KotlinLogging.logger {}
 
@@ -16,17 +17,24 @@ class SocketWrapper(socket: Socket) {
     private val sendLock = Mutex()
     private val recvLock = Mutex()
 
-    suspend fun sendMessage(message: WorldHostS2CMessage) = sendLock.withLock {
+    suspend fun sendMessage(message: WorldHostS2CMessage, encryptCipher: Cipher?) = sendLock.withLock {
         val bb = message.toByteBuf()
-        writeChannel.writeInt(bb.remaining())
-        writeChannel.writeFully(bb)
+        var data = ByteArray(bb.remaining()).also(bb::get)
+        if (message.isEncrypted) {
+            data = checkNotNull(encryptCipher) {
+                "Attempted to send encrypted message $message without a cipher"
+            }.update(data)
+        }
+        writeChannel.writeInt(data.size + 1)
+        writeChannel.writeByte(message.typeId)
+        writeChannel.writeFully(data)
         writeChannel.flush()
     }
 
-    suspend fun recvMessage() = recvLock.withLock {
-        val size = readChannel.readInt()
+    suspend fun recvMessage(decryptCipher: Cipher?) = recvLock.withLock {
+        val size = readChannel.readInt() - 1
         if (size < 0) {
-            "Message size is less than 0".let {
+            "Message is empty".let {
                 closeError(it)
                 throw IllegalArgumentException(it)
             }
@@ -35,20 +43,23 @@ class SocketWrapper(socket: Socket) {
             readChannel.discardExact(size.toLong())
             throw IllegalArgumentException("Messages bigger than 2 MB are not allowed.")
         }
-        val bb = ByteBuffer.allocate(size)
-        val read = readChannel.readFully(bb)
-        if (read != size) {
-            throw IllegalStateException("Mismatch in packet size! Expected $size, read $read.")
+        val typeId = readChannel.readByte().toUByte().toInt()
+        val data = ByteArray(size).also { readChannel.readFully(it) }
+        val decrypted = if (WorldHostC2SMessage.isEncrypted(typeId)) {
+            checkNotNull(decryptCipher) {
+                "Attempted to receive encrypted message $typeId without a cipher"
+            }.update(data)
+        } else {
+            data
         }
-        bb.flip()
-        WorldHostC2SMessage.decode(bb)
+        WorldHostC2SMessage.decode(typeId, ByteBuffer.wrap(decrypted))
     }
 
     fun close() = writeChannel.close()
 
     suspend fun closeError(message: String) {
         try {
-            sendMessage(WorldHostS2CMessage.Error(message, true))
+            sendMessage(WorldHostS2CMessage.Error(message, true), null)
         } catch (e: Exception) {
             logger.warn(e) { "Error in critical error sending (message \"$message\")" }
         }
