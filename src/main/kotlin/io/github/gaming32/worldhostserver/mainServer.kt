@@ -299,7 +299,7 @@ private suspend fun performHandshake(
                 ProfileResult(GameProfile(uuid, username))
             }
             if (profile == null) {
-                throw IllegalStateException("Failed to verify username.")
+                throw IllegalStateException("Failed to verify username. Please restart your game and the launcher.")
             }
             profile.profile.id
         }
