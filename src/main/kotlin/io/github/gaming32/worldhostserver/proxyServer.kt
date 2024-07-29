@@ -32,7 +32,7 @@ suspend fun WorldHostServer.runProxyServer() = coroutineScope {
             "that it will be used only as a fallback if the client's best choice for external proxy goes down."
         }
     }
-    logger.info { "Starting proxy server" }
+    logger.info { "Starting proxy server on port ${config.inJavaPort}" }
     aSocket(SelectorManager(Dispatchers.IO)).tcp().bind(port = config.inJavaPort).use { serverSocket ->
         var nextConnectionId = 0L
         logger.info { "Started proxy server on ${serverSocket.localAddress}" }

@@ -20,10 +20,6 @@ fun main(args: Array<String>) {
         ArgType.Int, shortName = "p",
         description = "Port to bind to"
     ).default(9646)
-    val punchPort by parser.option(
-        ArgType.Int, shortName = "P",
-        description = "Port to bind to for punch server (or 0 to disable punch server)"
-    ).default(/* 9746 */ 0)
     var baseAddr by parser.option(
         ArgType.String, shortName = "a",
         description = "Base address to use for proxy connections"
@@ -72,13 +68,12 @@ fun main(args: Array<String>) {
             launch {
                 logger.info { "Automatically shutting down after $shutdownTime" }
                 delay(shutdownTime)
-                logger.info { "Shutting down because shutdownTime was reached" }
+                logger.info { "Shutting down because shutdownTime ($shutdownTime) was reached" }
                 exitProcess(0)
             }
         }
         WorldHostServer(WorldHostServer.Config(
             port,
-            punchPort,
             baseAddr,
             inJavaPort,
             exJavaPort ?: inJavaPort,

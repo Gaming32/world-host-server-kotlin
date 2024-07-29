@@ -1,6 +1,8 @@
 package io.github.gaming32.worldhostserver
 
 import io.github.gaming32.worldhostserver.serialization.cid
+import io.github.gaming32.worldhostserver.serialization.punchCookie
+import io.github.gaming32.worldhostserver.serialization.string
 import io.github.gaming32.worldhostserver.serialization.uuid
 import io.github.gaming32.worldhostserver.util.addWithCircleLimit
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -13,7 +15,11 @@ private val logger = KotlinLogging.logger {}
 
 sealed interface WorldHostC2SMessage {
     companion object {
-        fun isEncrypted(typeId: Int) = false
+        fun isEncrypted(typeId: Int) = when (typeId) {
+            RequestPunchOpen.ID,
+            PunchRequestInvalid.ID -> true
+            else -> false
+        }
 
         fun decode(typeId: Int, buf: ByteBuffer) = when (typeId) {
             ListOnline.ID -> ListOnline.decode(buf)
@@ -28,6 +34,8 @@ sealed interface WorldHostC2SMessage {
             ProxyDisconnect.ID -> ProxyDisconnect.decode(buf)
             RequestDirectJoin.ID -> RequestDirectJoin.decode(buf)
             NewQueryResponse.ID -> NewQueryResponse.decode(buf)
+            RequestPunchOpen.ID -> RequestPunchOpen.decode(buf)
+            PunchRequestInvalid.ID -> PunchRequestInvalid.decode(buf)
             else -> throw IllegalArgumentException("Received packet with unknown typeId from client: $typeId")
         }
     }
@@ -341,6 +349,53 @@ sealed interface WorldHostC2SMessage {
             var result = connectionId.hashCode()
             result = 31 * result + data.contentHashCode()
             return result
+        }
+    }
+
+    data class RequestPunchOpen(
+        val targetConnection: ConnectionId,
+        val purpose: String,
+        val cookie: PunchCookie
+    ) : WorldHostC2SMessage {
+        companion object {
+            const val ID = 12
+
+            fun decode(buf: ByteBuffer) = RequestPunchOpen(buf.cid, buf.string, buf.punchCookie)
+        }
+
+        override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
+            val targetClient = server.whConnections.byId(targetConnection)
+                ?: return connection.sendMessage(WorldHostS2CMessage.PunchRequestCancelled(cookie))
+            val request = ActivePunchRequest(cookie, connection.id, targetConnection)
+            val oldRequest = server.punchRequests.withLock { putIfAbsent(cookie, request) }
+            if (oldRequest != null) {
+                connection.sendMessage(WorldHostS2CMessage.PunchRequestCancelled(cookie))
+                connection.sendMessage(WorldHostS2CMessage.Error("Duplicate punch cookie $cookie"))
+                return
+            }
+            if (targetClient.protocolVersion < 7) {
+                return connection.sendMessage(WorldHostS2CMessage.PunchRequestCancelled(cookie))
+            }
+            server.punchRequestsByExpiryAtSecond.withLock {
+                getOrPut(System.currentTimeMillis() / 1000L + PUNCH_REQUEST_EXPIRY) { mutableListOf() }.add(cookie)
+            }
+            targetClient.sendMessage(WorldHostS2CMessage.PunchOpenRequest(
+                cookie, purpose, connection.userUuid, connection.securityLevel
+            ))
+        }
+    }
+
+    data class PunchRequestInvalid(val cookie: PunchCookie) : WorldHostC2SMessage {
+        companion object {
+            const val ID = 13
+
+            fun decode(buf: ByteBuffer) = PunchRequestInvalid(buf.punchCookie)
+        }
+
+        override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
+            val request = server.punchRequests.withLock { remove(cookie) } ?: return
+            server.whConnections.byId(request.sourceClient)
+                ?.sendMessage(WorldHostS2CMessage.PunchRequestCancelled(cookie))
         }
     }
 }

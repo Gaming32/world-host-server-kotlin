@@ -47,11 +47,7 @@ sealed interface JoinType {
         override fun toOnlineGame(
             connection: Connection,
             config: WorldHostServer.Config
-        ) = if (config.punchPort <= 0) {
-            null
-        } else {
-            WorldHostS2CMessage.OnlineGame("", 0, connection.id, true)
-        }
+        ) = null
 
         override fun toString() = "JoinType.Punch"
     }

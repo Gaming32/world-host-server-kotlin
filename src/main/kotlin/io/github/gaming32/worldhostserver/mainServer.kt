@@ -34,7 +34,7 @@ import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTimedValue
 
-const val PROTOCOL_VERSION = 6
+const val PROTOCOL_VERSION = 7
 const val NEW_AUTH_PROTOCOL = 6
 val SUPPORTED_PROTOCOLS = 2..PROTOCOL_VERSION
 val PROTOCOL_VERSION_MAP = mapOf(
@@ -43,6 +43,7 @@ val PROTOCOL_VERSION_MAP = mapOf(
     4 to "0.4.3",
     5 to "0.4.4",
     6 to "0.4.14",
+    7 to "0.4.15",
 )
 val VERSION_NAME = PROTOCOL_VERSION_MAP[PROTOCOL_VERSION]!!
 
@@ -145,6 +146,8 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                             handshakeResult.decryptCipher,
                             handshakeResult.encryptCipher
                         )
+                    } catch (_: ClosedReceiveChannelException) {
+                        return@launch
                     } catch (e: Exception) {
                         logger.warn(e) { "Invalid handshake from $remoteAddr" }
                         return@launch socket.closeError("Invalid handshake: $e")
@@ -158,7 +161,7 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                         config.exJavaPort,
                         remoteAddr,
                         PROTOCOL_VERSION,
-                        config.punchPort
+                        0
                     ))
 
                     if (protocolVersion < PROTOCOL_VERSION) {
@@ -251,6 +254,7 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                     // Shouldn't this be throwing a ClosedReceiveChannelException instead?
                     if (!e.isSimpleDisconnectException) {
                         logger.error(e) { "A critical error occurred in WH client handling" }
+                        socket.closeError(e.toString())
                     }
                 } finally {
                     socket.close()

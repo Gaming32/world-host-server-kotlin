@@ -21,7 +21,6 @@ private val logger = KotlinLogging.logger {}
 class WorldHostServer(val config: Config) {
     data class Config(
         val port: Int,
-        val punchPort: Int,
         val baseAddr: String?,
         val inJavaPort: Int,
         val exJavaPort: Int,
@@ -44,11 +43,13 @@ class WorldHostServer(val config: Config) {
 
     val proxyConnections = LockedObject(mutableMapOf<Long, Pair<ConnectionId, ByteWriteChannel>>())
 
-    val waitingPunch = LockedObject(mutableMapOf<Pair<ConnectionId, ConnectionId>, PunchClient>())
-
     val rememberedFriendRequests = LockedObject(mutableMapOf<UUID, MutableSet<UUID>>())
 
     val receivedFriendRequests = LockedObject(mutableMapOf<UUID, MutableSet<UUID>>())
+
+    val punchRequests = LockedObject(mutableMapOf<PunchCookie, ActivePunchRequest>())
+
+    val punchRequestsByExpiryAtSecond = LockedObject(mutableMapOf<Long, MutableList<PunchCookie>>())
 
     suspend fun run() = coroutineScope {
         logger.info { "Starting world-host-server $SERVER_VERSION with $config" }
@@ -67,7 +68,7 @@ class WorldHostServer(val config: Config) {
         }
         launch { runAnalytics() }
         launch { runProxyServer() }
-        launch { runPunchServer() }
+        launch { runSignallingServer() }
         runMainServer()
     }
 }

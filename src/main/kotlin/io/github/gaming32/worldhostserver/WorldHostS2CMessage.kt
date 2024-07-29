@@ -192,4 +192,33 @@ sealed interface WorldHostS2CMessage : FieldedSerializer {
         override val typeId: Byte get() = 17
         override val fields = listOf(message, important)
     }
+
+    data class PunchOpenRequest(
+        val cookie: PunchCookie,
+        val purpose: String,
+        val user: UUID,
+        val security: SecurityLevel
+    ) : WorldHostS2CMessage {
+        override val typeId: Byte get() = 18
+        override val fields = listOf(cookie, purpose, user, security)
+        override val isEncrypted get() = true
+    }
+
+    data class StopPunchRetransmit(val cookie: PunchCookie) : WorldHostS2CMessage {
+        override val typeId: Byte get() = 19
+        override val fields = listOf(cookie)
+        override val isEncrypted get() = true
+    }
+
+    data class PunchRequestSuccess(val cookie: PunchCookie, val host: String, val port: Int) : WorldHostS2CMessage {
+        override val typeId: Byte get() = 20
+        override val fields = listOf(cookie, host, port.toShort())
+        override val isEncrypted get() = true
+    }
+
+    data class PunchRequestCancelled(val cookie: PunchCookie) : WorldHostS2CMessage {
+        override val typeId: Byte get() = 21
+        override val fields = listOf(cookie)
+        override val isEncrypted get() = true
+    }
 }

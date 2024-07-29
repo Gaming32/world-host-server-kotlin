@@ -13,7 +13,6 @@ Basic analytics about how many players are online as well as how many players ar
 ## Configuring
 ```
 -p --port          : What port the server will bind to
--P --punchPort     : What the punch server will bind to (0 to disable)
 -a --baseAddr      : What address the server will use for proxy connections
 -j --inJavaPort    : Port to use for incoming java connections
 -J --exJavaPort    : Port to use for outgoing java connections
@@ -36,8 +35,7 @@ services:
     ports:
       - "25565:25565"
       - "9646:9646"
-      - "9746:9746"
-    command: java -jar world-host-server.jar -P 9746 -a example.com
+    command: java -jar world-host-server.jar -a example.com
     restart: always
 ```
 To start the server just run the following command. To change settings read the section about configuring and make those changes to `command: ___` in your `config.yml`.

@@ -11,7 +11,7 @@ interface PacketSerializable {
         private val defaults: Map<Class<out Any>, Default<out Any>> = mapOf(
             String::class.java to Default(ByteBuffer::putString) { 2 + utf8Length() },
             UUID::class.java to Default(ByteBuffer::putUuid, 16),
-            Short::class.javaObjectType to Default<Short>({ putShort(it) }, 2),
+            Short::class.javaObjectType to Default(ByteBuffer::putShort, 2),
             Int::class.javaObjectType to Default(ByteBuffer::putInt, 4),
             ByteArray::class.java to Default<ByteArray>(ByteBuffer::put) { size },
             Long::class.javaObjectType to Default(ByteBuffer::putLong, 8),
