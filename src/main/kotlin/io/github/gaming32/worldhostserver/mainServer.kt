@@ -35,6 +35,7 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTimedValue
 
 const val PROTOCOL_VERSION = 7
+const val STABLE_PROTOCOL_VERSION = 6
 const val NEW_AUTH_PROTOCOL = 6
 val SUPPORTED_PROTOCOLS = 2..PROTOCOL_VERSION
 val PROTOCOL_VERSION_MAP = mapOf(
@@ -45,7 +46,6 @@ val PROTOCOL_VERSION_MAP = mapOf(
     6 to "0.4.14",
     7 to "0.4.15",
 )
-val VERSION_NAME = PROTOCOL_VERSION_MAP[PROTOCOL_VERSION]!!
 
 private const val KEY_PREFIX = 0xFAFA0000.toInt()
 
@@ -155,22 +155,25 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
 
                     logger.info { "Connection opened: $connection" }
 
+                    val latestVisibleProtocolVersion =
+                        if (protocolVersion <= STABLE_PROTOCOL_VERSION) STABLE_PROTOCOL_VERSION else PROTOCOL_VERSION
                     connection.sendMessage(WorldHostS2CMessage.ConnectionInfo(
                         connection.id,
                         config.baseAddr ?: "",
                         config.exJavaPort,
                         remoteAddr,
-                        PROTOCOL_VERSION,
+                        latestVisibleProtocolVersion,
                         0
                     ))
-
-                    if (protocolVersion < PROTOCOL_VERSION) {
+                    if (protocolVersion < latestVisibleProtocolVersion) {
                         logger.warn {
-                            "Client ${connection.id} has an older client! " +
+                            "Client ${connection.id} has an outdated client! " +
                                 "Client version: $protocolVersion. " +
-                                "Server version: $PROTOCOL_VERSION."
+                                "Server version: $PROTOCOL_VERSION (stable $STABLE_PROTOCOL_VERSION)."
                         }
-                        connection.sendMessage(WorldHostS2CMessage.OutdatedWorldHost(VERSION_NAME))
+                        connection.sendMessage(WorldHostS2CMessage.OutdatedWorldHost(
+                            PROTOCOL_VERSION_MAP.getValue(latestVisibleProtocolVersion)
+                        ))
                     }
 
                     if (connection.securityLevel == SecurityLevel.INSECURE && connection.userUuid.version() == 4) {
