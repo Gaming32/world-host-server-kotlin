@@ -10,33 +10,57 @@ import io.ktor.utils.io.*
 import kotlinx.coroutines.CoroutineScope
 import java.nio.ByteBuffer
 import java.util.*
+import javax.crypto.Cipher
+import kotlin.reflect.KClass
+import kotlin.reflect.full.companionObjectInstance
 
 private val logger = KotlinLogging.logger {}
 
 sealed interface WorldHostC2SMessage {
+    sealed interface MessageFactory<M : WorldHostC2SMessage> {
+        val id: Int
+
+        val isEncrypted get() = false
+
+        fun decode(buf: ByteBuffer): M
+    }
+
     companion object {
-        fun isEncrypted(typeId: Int) = when (typeId) {
-            RequestPunchOpen.ID,
-            PunchRequestInvalid.ID -> true
-            else -> false
+        val factoryById: Map<Int, MessageFactory<*>> = buildMap {
+            for (messageClass in WorldHostC2SMessage::class.sealedSubclasses) {
+                val factory = messageClass.companionObjectInstance ?: throw IllegalStateException(
+                    "${messageClass.simpleName} missing factory"
+                )
+                factory as? MessageFactory<*> ?: throw IllegalStateException(
+                    "${messageClass.simpleName} factory not an instance of ${MessageFactory::class.simpleName}"
+                )
+                if (factory.targetType != messageClass) {
+                    throw IllegalStateException("${messageClass.simpleName} factory has wrong target type")
+                }
+                putIfAbsent(factory.id, factory)?.let {
+                    throw IllegalStateException(
+                        "Duplicate type ID ${factory.id} between ${it.targetType.simpleName} and ${messageClass.simpleName}"
+                    )
+                }
+            }
         }
 
-        fun decode(typeId: Int, buf: ByteBuffer) = when (typeId) {
-            ListOnline.ID -> ListOnline.decode(buf)
-            FriendRequest.ID -> FriendRequest.decode(buf)
-            PublishedWorld.ID -> PublishedWorld.decode(buf)
-            ClosedWorld.ID -> ClosedWorld.decode(buf)
-            RequestJoin.ID -> RequestJoin.decode(buf)
-            JoinGranted.ID -> JoinGranted.decode(buf)
-            QueryRequest.ID -> QueryRequest.decode(buf)
-            QueryResponse.ID -> QueryResponse.decode(buf)
-            ProxyS2CPacket.ID -> ProxyS2CPacket.decode(buf)
-            ProxyDisconnect.ID -> ProxyDisconnect.decode(buf)
-            RequestDirectJoin.ID -> RequestDirectJoin.decode(buf)
-            NewQueryResponse.ID -> NewQueryResponse.decode(buf)
-            RequestPunchOpen.ID -> RequestPunchOpen.decode(buf)
-            PunchRequestInvalid.ID -> PunchRequestInvalid.decode(buf)
-            else -> throw IllegalArgumentException("Received packet with unknown typeId from client: $typeId")
+        @Suppress("UNCHECKED_CAST")
+        val <M : WorldHostC2SMessage> MessageFactory<M>.targetType get() =
+            this::class.supertypes.first().arguments.single().type?.classifier as KClass<M>
+
+        fun decode(typeId: Int, data: ByteArray, decryptCipher: Cipher? = null): WorldHostC2SMessage {
+            val factory = factoryById[typeId]
+                ?: throw IllegalArgumentException("Received packet with unknown typeId from client: $typeId")
+            return factory.decode(ByteBuffer.wrap(
+                if (factory.isEncrypted) {
+                    checkNotNull(decryptCipher) {
+                        "Attempted to receive encrypted message $typeId without a cipher"
+                    }.update(data)
+                } else {
+                    data
+                }
+            ))
         }
     }
 
@@ -46,10 +70,10 @@ sealed interface WorldHostC2SMessage {
     )
 
     data class ListOnline(val friends: Collection<UUID>) : WorldHostC2SMessage {
-        companion object {
-            const val ID = 0
+        companion object : MessageFactory<ListOnline> {
+            override val id get() = 0
 
-            fun decode(buf: ByteBuffer) = ListOnline(List(buf.int) { buf.uuid })
+            override fun decode(buf: ByteBuffer) = ListOnline(List(buf.int) { buf.uuid })
         }
 
         override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
@@ -64,10 +88,10 @@ sealed interface WorldHostC2SMessage {
     }
 
     data class FriendRequest(val toUser: UUID) : WorldHostC2SMessage {
-        companion object {
-            const val ID = 1
+        companion object : MessageFactory<FriendRequest> {
+            override val id get() = 1
 
-            fun decode(buf: ByteBuffer) = FriendRequest(buf.uuid)
+            override fun decode(buf: ByteBuffer) = FriendRequest(buf.uuid)
         }
 
         override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
@@ -102,10 +126,10 @@ sealed interface WorldHostC2SMessage {
     }
 
     data class PublishedWorld(val friends: Collection<UUID>) : WorldHostC2SMessage {
-        companion object {
-            const val ID = 2
+        companion object : MessageFactory<PublishedWorld> {
+            override val id get() = 2
 
-            fun decode(buf: ByteBuffer) = ListOnline(List(buf.int) { buf.uuid })
+            override fun decode(buf: ByteBuffer) = PublishedWorld(List(buf.int) { buf.uuid })
         }
 
         override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
@@ -123,10 +147,10 @@ sealed interface WorldHostC2SMessage {
     }
 
     data class ClosedWorld(val friends: Collection<UUID>) : WorldHostC2SMessage {
-        companion object {
-            const val ID = 3
+        companion object : MessageFactory<ClosedWorld> {
+            override val id get() = 3
 
-            fun decode(buf: ByteBuffer) = ClosedWorld(List(buf.int) { buf.uuid })
+            override fun decode(buf: ByteBuffer) = ClosedWorld(List(buf.int) { buf.uuid })
         }
 
         override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
@@ -142,10 +166,10 @@ sealed interface WorldHostC2SMessage {
     }
 
     data class RequestJoin(val friend: UUID) : WorldHostC2SMessage {
-        companion object {
-            const val ID = 4
+        companion object : MessageFactory<RequestJoin> {
+            override val id get() = 4
 
-            fun decode(buf: ByteBuffer) = RequestJoin(buf.uuid)
+            override fun decode(buf: ByteBuffer) = RequestJoin(buf.uuid)
         }
 
         override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
@@ -169,10 +193,10 @@ sealed interface WorldHostC2SMessage {
     }
 
     data class JoinGranted(val connectionId: ConnectionId, val joinType: JoinType) : WorldHostC2SMessage {
-        companion object {
-            const val ID = 5
+        companion object : MessageFactory<JoinGranted> {
+            override val id get() = 5
 
-            fun decode(buf: ByteBuffer) = JoinGranted(buf.cid, JoinType.decode(buf))
+            override fun decode(buf: ByteBuffer) = JoinGranted(buf.cid, JoinType.decode(buf))
         }
 
         override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
@@ -186,10 +210,10 @@ sealed interface WorldHostC2SMessage {
     }
 
     data class QueryRequest(val friends: Collection<UUID>) : WorldHostC2SMessage {
-        companion object {
-            const val ID = 6
+        companion object : MessageFactory<QueryRequest> {
+            override val id get() = 6
 
-            fun decode(buf: ByteBuffer) = QueryRequest(List(buf.int) { buf.uuid })
+            override fun decode(buf: ByteBuffer) = QueryRequest(List(buf.int) { buf.uuid })
         }
 
         override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
@@ -206,10 +230,10 @@ sealed interface WorldHostC2SMessage {
     }
 
     data class QueryResponse(val connectionId: ConnectionId, val data: ByteArray) : WorldHostC2SMessage {
-        companion object {
-            const val ID = 7
+        companion object : MessageFactory<QueryResponse> {
+            override val id get() = 7
 
-            fun decode(buf: ByteBuffer) = QueryResponse(buf.cid, ByteArray(buf.int).also(buf::get))
+            override fun decode(buf: ByteBuffer) = QueryResponse(buf.cid, ByteArray(buf.int).also(buf::get))
         }
 
         @Suppress("SuspendFunctionOnCoroutineScope")
@@ -236,10 +260,10 @@ sealed interface WorldHostC2SMessage {
     }
 
     data class ProxyS2CPacket(val connectionId: Long, val data: ByteArray) : WorldHostC2SMessage {
-        companion object {
-            const val ID = 8
+        companion object : MessageFactory<ProxyS2CPacket> {
+            override val id get() = 8
 
-            fun decode(buf: ByteBuffer) = ProxyS2CPacket(buf.long, ByteArray(buf.remaining()).also(buf::get))
+            override fun decode(buf: ByteBuffer) = ProxyS2CPacket(buf.long, ByteArray(buf.remaining()).also(buf::get))
         }
 
         override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
@@ -275,10 +299,10 @@ sealed interface WorldHostC2SMessage {
     }
 
     data class ProxyDisconnect(val connectionId: Long) : WorldHostC2SMessage {
-        companion object {
-            const val ID = 9
+        companion object : MessageFactory<ProxyDisconnect> {
+            override val id get() = 9
 
-            fun decode(buf: ByteBuffer) = ProxyDisconnect(buf.long)
+            override fun decode(buf: ByteBuffer) = ProxyDisconnect(buf.long)
         }
 
         override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
@@ -297,10 +321,10 @@ sealed interface WorldHostC2SMessage {
     }
 
     data class RequestDirectJoin(val connectionId: ConnectionId) : WorldHostC2SMessage {
-        companion object {
-            const val ID = 10
+        companion object : MessageFactory<RequestDirectJoin> {
+            override val id get() = 10
 
-            fun decode(buf: ByteBuffer) = RequestDirectJoin(buf.cid)
+            override fun decode(buf: ByteBuffer) = RequestDirectJoin(buf.cid)
         }
 
         override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
@@ -316,10 +340,10 @@ sealed interface WorldHostC2SMessage {
     }
 
     data class NewQueryResponse(val connectionId: ConnectionId, val data: ByteArray) : WorldHostC2SMessage {
-        companion object {
-            const val ID = 11
+        companion object : MessageFactory<NewQueryResponse> {
+            override val id get() = 11
 
-            fun decode(buf: ByteBuffer) = NewQueryResponse(buf.cid, ByteArray(buf.remaining()).also(buf::get))
+            override fun decode(buf: ByteBuffer) = NewQueryResponse(buf.cid, ByteArray(buf.remaining()).also(buf::get))
         }
 
         override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
@@ -357,10 +381,12 @@ sealed interface WorldHostC2SMessage {
         val purpose: String,
         val cookie: PunchCookie
     ) : WorldHostC2SMessage {
-        companion object {
-            const val ID = 12
+        companion object : MessageFactory<RequestPunchOpen> {
+            override val id get() = 12
 
-            fun decode(buf: ByteBuffer) = RequestPunchOpen(buf.cid, buf.string, buf.punchCookie)
+            override val isEncrypted get() = true
+
+            override fun decode(buf: ByteBuffer) = RequestPunchOpen(buf.cid, buf.string, buf.punchCookie)
         }
 
         override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
@@ -386,10 +412,12 @@ sealed interface WorldHostC2SMessage {
     }
 
     data class PunchRequestInvalid(val cookie: PunchCookie) : WorldHostC2SMessage {
-        companion object {
-            const val ID = 13
+        companion object : MessageFactory<PunchRequestInvalid> {
+            override val id get() = 13
 
-            fun decode(buf: ByteBuffer) = PunchRequestInvalid(buf.punchCookie)
+            override val isEncrypted get() = true
+
+            override fun decode(buf: ByteBuffer) = PunchRequestInvalid(buf.punchCookie)
         }
 
         override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {

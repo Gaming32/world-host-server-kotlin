@@ -6,7 +6,6 @@ import io.ktor.network.sockets.*
 import io.ktor.utils.io.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import java.nio.ByteBuffer
 import javax.crypto.Cipher
 
 private val logger = KotlinLogging.logger {}
@@ -17,7 +16,7 @@ class SocketWrapper(socket: Socket) {
     private val sendLock = Mutex()
     private val recvLock = Mutex()
 
-    suspend fun sendMessage(message: WorldHostS2CMessage, encryptCipher: Cipher?) = sendLock.withLock {
+    suspend fun sendMessage(message: WorldHostS2CMessage, encryptCipher: Cipher? = null) = sendLock.withLock {
         val bb = message.toByteBuf()
         var data = ByteArray(bb.remaining()).also(bb::get)
         if (message.isEncrypted) {
@@ -31,7 +30,7 @@ class SocketWrapper(socket: Socket) {
         writeChannel.flush()
     }
 
-    suspend fun recvMessage(decryptCipher: Cipher?) = recvLock.withLock {
+    suspend fun recvMessage(decryptCipher: Cipher? = null) = recvLock.withLock {
         val size = readChannel.readInt() - 1
         if (size < 0) {
             "Message is empty".let {
@@ -45,14 +44,7 @@ class SocketWrapper(socket: Socket) {
         }
         val typeId = readChannel.readByte().toUByte().toInt()
         val data = ByteArray(size).also { readChannel.readFully(it) }
-        val decrypted = if (WorldHostC2SMessage.isEncrypted(typeId)) {
-            checkNotNull(decryptCipher) {
-                "Attempted to receive encrypted message $typeId without a cipher"
-            }.update(data)
-        } else {
-            data
-        }
-        WorldHostC2SMessage.decode(typeId, ByteBuffer.wrap(decrypted))
+        WorldHostC2SMessage.decode(typeId, data, decryptCipher)
     }
 
     fun close() = writeChannel.close()

@@ -71,6 +71,7 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                 (SUPPORTED_PROTOCOLS.toSet() - PROTOCOL_VERSION_MAP.keys).joinToString()
         )
     }
+    WorldHostC2SMessage // Force initialize
 
     val ipInfoMap = run {
         logger.info { "Downloading IP info map..." }
