@@ -322,7 +322,11 @@ private suspend fun performHandshake(
                 ProfileResult(GameProfile(uuid, username))
             }
             if (profile == null) {
-                throw IllegalStateException("Failed to verify username. Please restart your game and the launcher.")
+                throw IllegalStateException(
+                    "Failed to verify username. " +
+                        "Please restart your game and the launcher. " +
+                        "If you're unable to join regular Minecraft servers, this is not a bug with World Host."
+                )
             }
             profile.profile.id
         }
