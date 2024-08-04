@@ -95,6 +95,7 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
             launch {
                 val socket = SocketWrapper(clientSocket)
                 var connection: Connection? = null
+                var handleContext: WorldHostC2SMessage.HandleContext? = null
                 try {
                     val addrObj = clientSocket.remoteAddress.toJavaAddress() as InetSocketAddress
                     val remoteAddr = addrObj.hostString!!
@@ -151,6 +152,9 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                         }
                         return@launch
                     }!!
+                    handleContext = WorldHostC2SMessage.HandleContext(
+                        this@launch, this@runMainServer, connection
+                    )
 
                     logger.info { "Connection opened: $connection" }
 
@@ -248,7 +252,7 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                         }
                         logger.debug { "Received message $message" }
                         with(message) {
-                            handle(this@runMainServer, connection)
+                            handleContext.handle()
                         }
                     }
                 } catch (_: ClosedReceiveChannelException) {
@@ -265,7 +269,7 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                         logger.info { "Connection closed: $connection" }
                         whConnections.remove(connection)
                         with(WorldHostC2SMessage.ClosedWorld(connection.openToFriends.toList())) {
-                            handle(this@runMainServer, connection)
+                            handleContext!!.handle()
                         }
                         logger.info { "There are ${whConnections.size} open connections." }
                     }

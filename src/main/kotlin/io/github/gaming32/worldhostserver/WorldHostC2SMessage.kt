@@ -8,6 +8,7 @@ import io.github.gaming32.worldhostserver.util.addWithCircleLimit
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.utils.io.*
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.ClosedSendChannelException
 import java.nio.ByteBuffer
 import java.util.*
 import javax.crypto.Cipher
@@ -64,10 +65,26 @@ sealed interface WorldHostC2SMessage {
         }
     }
 
-    suspend fun CoroutineScope.handle(
-        server: WorldHostServer,
-        connection: Connection
-    )
+    class HandleContext(
+        private val scope: CoroutineScope,
+        val server: WorldHostServer,
+        val connection: Connection
+    ) : CoroutineScope by scope {
+        suspend fun Connection.sendSafely(message: WorldHostS2CMessage) {
+            try {
+                sendMessage(message)
+            } catch (e: Exception) {
+                if (
+                    e !is ClosedSendChannelException ||
+                    e.message != "An established connection was aborted by the software in your host machine"
+                ) {
+                    logger.warn(e) { "Failed to broadcast $message from ${connection.id} to $id" }
+                }
+            }
+        }
+    }
+
+    suspend fun HandleContext.handle()
 
     data class ListOnline(val friends: Collection<UUID>) : WorldHostC2SMessage {
         companion object : MessageFactory<ListOnline> {
@@ -76,12 +93,12 @@ sealed interface WorldHostC2SMessage {
             override fun decode(buf: ByteBuffer) = ListOnline(List(buf.int) { buf.uuid })
         }
 
-        override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
+        override suspend fun HandleContext.handle() {
             val response = WorldHostS2CMessage.IsOnlineTo(connection.userUuid)
             for (friend in friends) {
                 for (other in server.whConnections.byUserId(friend)) {
                     if (other.id == connection.id) continue
-                    other.sendMessage(response)
+                    other.sendSafely(response)
                 }
             }
         }
@@ -94,13 +111,13 @@ sealed interface WorldHostC2SMessage {
             override fun decode(buf: ByteBuffer) = FriendRequest(buf.uuid)
         }
 
-        override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
+        override suspend fun HandleContext.handle() {
             val response = WorldHostS2CMessage.FriendRequest(connection.userUuid, connection.securityLevel)
             val otherConnections = server.whConnections.byUserId(toUser)
             if (otherConnections.isNotEmpty()) {
                 for (other in server.whConnections.byUserId(toUser)) {
                     if (other.id == connection.id) continue
-                    other.sendMessage(response)
+                    other.sendSafely(response)
                 }
             } else if (connection.securityLevel > SecurityLevel.INSECURE) {
                 val removedRemembered = server.rememberedFriendRequests.withLock {
@@ -132,7 +149,7 @@ sealed interface WorldHostC2SMessage {
             override fun decode(buf: ByteBuffer) = PublishedWorld(List(buf.int) { buf.uuid })
         }
 
-        override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
+        override suspend fun HandleContext.handle() {
             connection.openToFriends += friends
             val response = WorldHostS2CMessage.PublishedWorld(
                 connection.userUuid, connection.id, connection.securityLevel
@@ -140,7 +157,7 @@ sealed interface WorldHostC2SMessage {
             for (friend in friends) {
                 for (other in server.whConnections.byUserId(friend)) {
                     if (other.id == connection.id) continue
-                    other.sendMessage(response)
+                    other.sendSafely(response)
                 }
             }
         }
@@ -153,13 +170,13 @@ sealed interface WorldHostC2SMessage {
             override fun decode(buf: ByteBuffer) = ClosedWorld(List(buf.int) { buf.uuid })
         }
 
-        override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
+        override suspend fun HandleContext.handle() {
             connection.openToFriends -= friends.toSet()
             val response = WorldHostS2CMessage.ClosedWorld(connection.userUuid)
             for (friend in friends) {
                 for (other in server.whConnections.byUserId(friend)) {
                     if (other.id == connection.id) continue
-                    other.sendMessage(response)
+                    other.sendSafely(response)
                 }
             }
         }
@@ -172,10 +189,10 @@ sealed interface WorldHostC2SMessage {
             override fun decode(buf: ByteBuffer) = RequestJoin(buf.uuid)
         }
 
-        override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
+        override suspend fun HandleContext.handle() {
             if (connection.protocolVersion >= 4) {
                 logger.warn { "Connection ${connection.id} tried to use unsupported RequestJoin message" }
-                connection.sendMessage(
+                connection.sendSafely(
                     WorldHostS2CMessage.Error(
                         "Please use the v4+ RequestDirectJoin message instead of the unsupported RequestJoin message"
                     )
@@ -188,7 +205,7 @@ sealed interface WorldHostC2SMessage {
             server.whConnections.byUserId(friend)
                 .lastOrNull()
                 ?.takeIf { it.id != connection.id }
-                ?.sendMessage(response)
+                ?.sendSafely(response)
         }
     }
 
@@ -199,13 +216,13 @@ sealed interface WorldHostC2SMessage {
             override fun decode(buf: ByteBuffer) = JoinGranted(buf.cid, JoinType.decode(buf))
         }
 
-        override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
+        override suspend fun HandleContext.handle() {
             val response = joinType.toOnlineGame(connection, server.config)
-                ?: return connection.sendMessage(
+                ?: return connection.sendSafely(
                     WorldHostS2CMessage.Error("This server does not support JoinType $joinType")
                 )
             if (connectionId == connection.id) return
-            server.whConnections.byId(connectionId)?.sendMessage(response)
+            server.whConnections.byId(connectionId)?.sendSafely(response)
         }
     }
 
@@ -216,14 +233,14 @@ sealed interface WorldHostC2SMessage {
             override fun decode(buf: ByteBuffer) = QueryRequest(List(buf.int) { buf.uuid })
         }
 
-        override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
+        override suspend fun HandleContext.handle() {
             val response = WorldHostS2CMessage.QueryRequest(
                 connection.userUuid, connection.id, connection.securityLevel
             )
             for (friend in friends) {
                 for (other in server.whConnections.byUserId(friend)) {
                     if (other.id == connection.id) continue
-                    other.sendMessage(response)
+                    other.sendSafely(response)
                 }
             }
         }
@@ -236,10 +253,9 @@ sealed interface WorldHostC2SMessage {
             override fun decode(buf: ByteBuffer) = QueryResponse(buf.cid, ByteArray(buf.int).also(buf::get))
         }
 
-        @Suppress("SuspendFunctionOnCoroutineScope")
-        override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) =
+        override suspend fun HandleContext.handle() =
             with(NewQueryResponse(connectionId, data)) {
-                handle(server, connection)
+                handle()
             }
 
         override fun equals(other: Any?): Boolean {
@@ -266,14 +282,14 @@ sealed interface WorldHostC2SMessage {
             override fun decode(buf: ByteBuffer) = ProxyS2CPacket(buf.long, ByteArray(buf.remaining()).also(buf::get))
         }
 
-        override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
+        override suspend fun HandleContext.handle() {
             server.proxyConnections.withLock {
                 this[connectionId]?.let { (cid, channel) ->
                     if (cid == connection.id) {
                         channel.writeFully(data)
                         channel.flush()
                     } else {
-                        connection.sendMessage(WorldHostS2CMessage.Error(
+                        connection.sendSafely(WorldHostS2CMessage.Error(
                             "Cannot send a packet to a connection that's not your own."
                         ))
                     }
@@ -305,13 +321,13 @@ sealed interface WorldHostC2SMessage {
             override fun decode(buf: ByteBuffer) = ProxyDisconnect(buf.long)
         }
 
-        override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
+        override suspend fun HandleContext.handle() {
             server.proxyConnections.withLock {
                 this[connectionId]?.let { (cid, channel) ->
                     if (cid == connection.id) {
                         channel.close()
                     } else {
-                        connection.sendMessage(WorldHostS2CMessage.Error(
+                        connection.sendSafely(WorldHostS2CMessage.Error(
                             "Cannot disconnect a connection that's not your own."
                         ))
                     }
@@ -327,15 +343,15 @@ sealed interface WorldHostC2SMessage {
             override fun decode(buf: ByteBuffer) = RequestDirectJoin(buf.cid)
         }
 
-        override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
+        override suspend fun HandleContext.handle() {
             val response = WorldHostS2CMessage.RequestJoin(
                 connection.userUuid, connection.id, connection.securityLevel
             )
             server.whConnections.byId(connectionId)
                 ?.takeIf { it.id != connection.id }
-                ?.sendMessage(response)
+                ?.sendSafely(response)
                 ?.let { return }
-            connection.sendMessage(WorldHostS2CMessage.ConnectionNotFound(connectionId))
+            connection.sendSafely(WorldHostS2CMessage.ConnectionNotFound(connectionId))
         }
     }
 
@@ -346,10 +362,10 @@ sealed interface WorldHostC2SMessage {
             override fun decode(buf: ByteBuffer) = NewQueryResponse(buf.cid, ByteArray(buf.remaining()).also(buf::get))
         }
 
-        override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
+        override suspend fun HandleContext.handle() {
             if (connectionId == connection.id) return
             val otherConnection = server.whConnections.byId(connectionId) ?: return
-            otherConnection.sendMessage(
+            otherConnection.sendSafely(
                 if (otherConnection.protocolVersion < 5) {
                     @Suppress("DEPRECATION")
                     WorldHostS2CMessage.QueryResponse(connection.userUuid, data)
@@ -389,23 +405,23 @@ sealed interface WorldHostC2SMessage {
             override fun decode(buf: ByteBuffer) = RequestPunchOpen(buf.cid, buf.string, buf.punchCookie)
         }
 
-        override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
+        override suspend fun HandleContext.handle() {
             val targetClient = server.whConnections.byId(targetConnection)
-                ?: return connection.sendMessage(WorldHostS2CMessage.PunchRequestCancelled(cookie))
+                ?: return connection.sendSafely(WorldHostS2CMessage.PunchRequestCancelled(cookie))
             val request = ActivePunchRequest(cookie, connection.id, targetConnection)
             val oldRequest = server.punchRequests.withLock { putIfAbsent(cookie, request) }
             if (oldRequest != null) {
-                connection.sendMessage(WorldHostS2CMessage.PunchRequestCancelled(cookie))
-                connection.sendMessage(WorldHostS2CMessage.Error("Duplicate punch cookie $cookie"))
+                connection.sendSafely(WorldHostS2CMessage.PunchRequestCancelled(cookie))
+                connection.sendSafely(WorldHostS2CMessage.Error("Duplicate punch cookie $cookie"))
                 return
             }
             if (targetClient.protocolVersion < 7) {
-                return connection.sendMessage(WorldHostS2CMessage.PunchRequestCancelled(cookie))
+                return connection.sendSafely(WorldHostS2CMessage.PunchRequestCancelled(cookie))
             }
             server.punchRequestsByExpiryAtSecond.withLock {
                 getOrPut(System.currentTimeMillis() / 1000L + PUNCH_REQUEST_EXPIRY) { mutableListOf() }.add(cookie)
             }
-            targetClient.sendMessage(WorldHostS2CMessage.PunchOpenRequest(
+            targetClient.sendSafely(WorldHostS2CMessage.PunchOpenRequest(
                 cookie, purpose, connection.userUuid, connection.securityLevel
             ))
         }
@@ -420,10 +436,10 @@ sealed interface WorldHostC2SMessage {
             override fun decode(buf: ByteBuffer) = PunchRequestInvalid(buf.punchCookie)
         }
 
-        override suspend fun CoroutineScope.handle(server: WorldHostServer, connection: Connection) {
+        override suspend fun HandleContext.handle() {
             val request = server.punchRequests.withLock { remove(cookie) } ?: return
             server.whConnections.byId(request.sourceClient)
-                ?.sendMessage(WorldHostS2CMessage.PunchRequestCancelled(cookie))
+                ?.sendSafely(WorldHostS2CMessage.PunchRequestCancelled(cookie))
         }
     }
 }
