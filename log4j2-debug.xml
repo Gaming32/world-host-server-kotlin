@@ -7,9 +7,19 @@
 
         <RollingRandomAccessFile name="LatestFile" fileName="logs/latest.log" filePattern="logs/%d{yyyy-MM-dd}-%i.log.gz">
             <PatternLayout pattern="[%d{HH:mm:ss}] [%t/%level] (%logger{1}) %msg{nolookups}%n"/>
-            <DefaultRolloverStrategy max="14" fileIndex="min"/>
             <Policies>
                 <TimeBasedTriggeringPolicy />
+                <OnStartupTriggeringPolicy />
+            </Policies>
+        </RollingRandomAccessFile>
+
+        <RollingRandomAccessFile name="DebugFile" fileName="logs/debug.log" filePattern="logs/debug-%i.log.gz">
+            <PatternLayout pattern="[%d{HH:mm:ss}] [%t/%level] (%logger) %msg{nolookups}%n"/>
+
+            <DefaultRolloverStrategy max="5" fileIndex="min"/>
+
+            <Policies>
+                <SizeBasedTriggeringPolicy size="200MB"/>
                 <OnStartupTriggeringPolicy />
             </Policies>
         </RollingRandomAccessFile>
@@ -17,6 +27,7 @@
 
     <Loggers>
         <Root level="all">
+            <AppenderRef ref="DebugFile" level="debug"/>
             <AppenderRef ref="SysOut" level="info"/>
             <AppenderRef ref="LatestFile" level="info"/>
         </Root>

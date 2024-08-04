@@ -1,10 +1,14 @@
 import net.raphimc.classtokenreplacer.task.ReplaceTokensTask
+import org.jetbrains.gradle.ext.Application
+import org.jetbrains.gradle.ext.runConfigurations
+import org.jetbrains.gradle.ext.settings
 
 plugins {
     application
     kotlin("jvm") version "2.0.0"
     kotlin("plugin.serialization") version "2.0.0"
     id("net.raphimc.class-token-replacer") version "1.1.2"
+    id("org.jetbrains.gradle.plugin.idea-ext") version "1.1.8"
 }
 
 group = "io.github.gaming32"
@@ -61,6 +65,14 @@ sourceSets {
 
 kotlin {
     jvmToolchain(17)
+}
+
+idea.project.settings.runConfigurations {
+    register<Application>("World Host Server") {
+        mainClass = "io.github.gaming32.worldhostserver.MainKt"
+        moduleName = "${project.idea.module.name}.main"
+        jvmArgs = "-Dlog4j.configurationFile=\"${file("log4j2-debug.xml")}\""
+    }
 }
 
 tasks.compileKotlin {
