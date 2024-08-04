@@ -2,16 +2,12 @@ package io.github.gaming32.worldhostserver
 
 import com.mojang.authlib.GameProfile
 import com.mojang.authlib.exceptions.AuthenticationUnavailableException
-import com.mojang.authlib.minecraft.MinecraftSessionService
 import com.mojang.authlib.yggdrasil.ProfileResult
 import com.mojang.authlib.yggdrasil.YggdrasilAuthenticationService
 import io.github.gaming32.worldhostserver.ratelimit.RateLimitBucket
 import io.github.gaming32.worldhostserver.ratelimit.RateLimited
 import io.github.gaming32.worldhostserver.ratelimit.RateLimiter
-import io.github.gaming32.worldhostserver.util.COMPRESSED_GEOLITE_CITY_FILES
-import io.github.gaming32.worldhostserver.util.IpInfoMap
-import io.github.gaming32.worldhostserver.util.MinecraftCrypt
-import io.github.gaming32.worldhostserver.util.isSimpleDisconnectException
+import io.github.gaming32.worldhostserver.util.*
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
@@ -56,13 +52,7 @@ val EXTERNAL_SERVERS = File("external_proxies.json")
     ?.let { Json.decodeFromStream<List<ExternalProxy>>(it) }
 
 private val logger = KotlinLogging.logger {}
-
-private data class HandshakeResult(
-    val userId: UUID,
-    val connectionId: ConnectionId,
-    val decryptCipher: Cipher?,
-    val encryptCipher: Cipher?
-)
+private val sessionService = YggdrasilAuthenticationService(Proxy.NO_PROXY).createMinecraftSessionService()
 
 suspend fun WorldHostServer.runMainServer() = coroutineScope {
     if (!SUPPORTED_PROTOCOLS.all(PROTOCOL_VERSION_MAP::containsKey)) {
@@ -82,7 +72,6 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
         ipInfoMap
     }
 
-    val sessionService = YggdrasilAuthenticationService(Proxy.NO_PROXY).createMinecraftSessionService()
     val keyPair = run {
         logger.info { "Generating key pair" }
         MinecraftCrypt.generateKeyPair()
@@ -130,13 +119,21 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                     @Suppress("UNNECESSARY_NOT_NULL_ASSERTION") // I have several questions
                     connection = try {
                         val handshakeResult = if (protocolVersion < NEW_AUTH_PROTOCOL) {
-                            HandshakeResult(
+                            Result.success(HandshakeResult(
                                 socket.readChannel.readUuid(),
                                 ConnectionId(socket.readChannel.readLong()),
                                 null, null
-                            )
+                            ))
                         } else {
-                            performHandshake(socket, sessionService, keyPair)
+                            performHandshake(socket, keyPair)
+                        }.getOrElse {
+                            logger.warn { "Handshake from $remoteAddr failed: ${it.message}" }
+                            socket.closeError("Handshake failed: ${it.message}")
+                            return@launch
+                        }
+                        handshakeResult.warning?.let {
+                            logger.warn { "Warning in handshake from $remoteAddr: $it" }
+                            socket.sendMessage(WorldHostS2CMessage.Warning(it, important = false))
                         }
                         Connection(
                             handshakeResult.connectionId,
@@ -147,11 +144,12 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                             handshakeResult.decryptCipher,
                             handshakeResult.encryptCipher
                         )
-                    } catch (_: ClosedReceiveChannelException) {
-                        return@launch
                     } catch (e: Exception) {
-                        logger.warn(e) { "Invalid handshake from $remoteAddr" }
-                        return@launch socket.closeError("Invalid handshake: $e")
+                        if (e !is ClosedReceiveChannelException && !e.isSimpleDisconnectException) {
+                            logger.warn(e) { "Failed to perform handshake from $remoteAddr" }
+                            socket.closeError(e.toString())
+                        }
+                        return@launch
                     }!!
 
                     logger.info { "Connection opened: $connection" }
@@ -277,11 +275,18 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
     }
 }
 
+private data class HandshakeResult(
+    val userId: UUID,
+    val connectionId: ConnectionId,
+    val decryptCipher: Cipher?,
+    val encryptCipher: Cipher?,
+    val warning: String? = null,
+)
+
 private suspend fun performHandshake(
     socket: SocketWrapper,
-    sessionService: MinecraftSessionService,
     keyPair: KeyPair
-): HandshakeResult {
+): Result<HandshakeResult> {
     socket.writeChannel.writeInt(KEY_PREFIX)
     socket.writeChannel.flush()
 
@@ -298,7 +303,7 @@ private suspend fun performHandshake(
     socket.readChannel.readFully(encryptedChallenge)
 
     if (!challenge.contentEquals(MinecraftCrypt.decryptUsingKey(keyPair.private, encryptedChallenge))) {
-        throw IllegalStateException("Challenge failed")
+        return Result.failure(IllegalStateException("Challenge failed"))
     }
 
     val encryptedSecretKey = ByteArray(socket.readChannel.readShort().toUShort().toInt())
@@ -307,41 +312,21 @@ private suspend fun performHandshake(
     val secretKey = MinecraftCrypt.decryptByteToSecretKey(keyPair.private, encryptedSecretKey)
     val authKey = BigInteger(MinecraftCrypt.digestData("", keyPair.public, secretKey)).toString(16)
 
-    val uuid = socket.readChannel.readUuid()
-    val username = socket.readChannel.readString()
+    val requestedUuid = socket.readChannel.readUuid()
+    val requestedUsername = socket.readChannel.readString()
     val connectionId = ConnectionId(socket.readChannel.readLong())
 
-    val expectedUuid = when (uuid.version()) {
-        4 -> {
-            val profile = try {
-                withContext(Dispatchers.IO) {
-                    sessionService.hasJoinedServer(username, authKey, null)
-                }
-            } catch (_: AuthenticationUnavailableException) {
-                logger.warn { "Authentication servers are down. Unable to verify $username. Will allow anyway." }
-                ProfileResult(GameProfile(uuid, username))
-            }
-            if (profile == null) {
-                throw IllegalStateException(
-                    "Failed to verify username. " +
-                        "Please restart your game and the launcher. " +
-                        "If you're unable to join regular Minecraft servers, this is not a bug with World Host."
-                )
-            }
-            profile.profile.id
-        }
-        3 -> UUID.nameUUIDFromBytes("OfflinePlayer:$username".encodeToByteArray())
-        else -> throw IllegalArgumentException("Unsupported UUID version ${uuid.version()}")
-    }
-    if (uuid != expectedUuid) {
-        throw IllegalStateException("Mismatched UUID. Client said $uuid. Expected $expectedUuid")
+    val verifyResult = verifyProfile(requestedUuid, requestedUsername, authKey)
+    if (verifyResult.isMismatch && verifyResult.mismatchIsError) {
+        return Result.failure(IllegalStateException(verifyResult.messageWithUuidInfo()))
     }
 
-    return HandshakeResult(
-        uuid, connectionId,
+    return Result.success(HandshakeResult(
+        requestedUuid, connectionId,
         MinecraftCrypt.getCipher(Cipher.DECRYPT_MODE, secretKey),
-        MinecraftCrypt.getCipher(Cipher.ENCRYPT_MODE, secretKey)
-    )
+        MinecraftCrypt.getCipher(Cipher.ENCRYPT_MODE, secretKey),
+        warning = verifyResult.takeIf(VerifyProfileResult::isMismatch)?.messageWithUuidInfo()
+    ))
 }
 
 private suspend fun ByteReadChannel.readString() =
@@ -350,3 +335,63 @@ private suspend fun ByteReadChannel.readString() =
         .decodeToString()
 
 private suspend fun ByteReadChannel.readUuid() = UUID(readLong(), readLong())
+
+private data class VerifyProfileResult(
+    private val requestedUuid: UUID,
+    private val expectedUuid: UUID,
+    private val mismatchMessage: String,
+    val mismatchIsError: Boolean,
+    private val includeUuidInfo: Boolean,
+) {
+    val isMismatch get() = requestedUuid != expectedUuid
+
+    fun messageWithUuidInfo() =
+        if (includeUuidInfo) {
+            "$mismatchMessage Client gave UUID $requestedUuid. Expected UUID $expectedUuid."
+        } else {
+            mismatchMessage
+        }
+}
+
+private suspend fun verifyProfile(
+    requestedUuid: UUID,
+    requestedUsername: String,
+    authKey: String
+) =
+    if (requestedUuid.version() == 4) {
+        val profile = try {
+            withContext(Dispatchers.IO) {
+                sessionService.hasJoinedServer(requestedUsername, authKey, null)
+            }
+        } catch (_: AuthenticationUnavailableException) {
+            logger.warn { "Authentication servers are down. Unable to verify $requestedUsername. Will allow anyway." }
+            ProfileResult(GameProfile(requestedUuid, requestedUsername))
+        }
+        if (profile == null) {
+            VerifyProfileResult(
+                requestedUuid,
+                NIL_UUID,
+                "Failed to verify username. " +
+                    "Please restart your game and the launcher. " +
+                    "If you're unable to join regular Minecraft servers, this is not a bug with World Host.",
+                mismatchIsError = true,
+                includeUuidInfo = false
+            )
+        } else {
+            VerifyProfileResult(
+                requestedUuid,
+                profile.profile.id,
+                "Mismatched UUID.",
+                mismatchIsError = true,
+                includeUuidInfo = true
+            )
+        }
+    } else {
+        VerifyProfileResult(
+            requestedUuid,
+            UUID.nameUUIDFromBytes("OfflinePlayer:$requestedUsername".encodeToByteArray()),
+            "Mismatched offline UUID. Some features may not work as intended.",
+            mismatchIsError = false,
+            includeUuidInfo = true
+        )
+    }
