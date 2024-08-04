@@ -30,7 +30,10 @@ class SocketWrapper(socket: Socket) {
         writeChannel.flush()
     }
 
-    suspend fun recvMessage(decryptCipher: Cipher? = null) = recvLock.withLock {
+    suspend fun recvMessage(
+        decryptCipher: Cipher? = null,
+        maxProtocolVersion: Int? = null
+    ) = recvLock.withLock {
         val size = readChannel.readInt() - 1
         if (size < 0) {
             "Message is empty".let {
@@ -44,7 +47,7 @@ class SocketWrapper(socket: Socket) {
         }
         val typeId = readChannel.readByte().toUByte().toInt()
         val data = ByteArray(size).also { readChannel.readFully(it) }
-        WorldHostC2SMessage.decode(typeId, data, decryptCipher)
+        WorldHostC2SMessage.decode(typeId, data, decryptCipher, maxProtocolVersion)
     }
 
     fun close() = writeChannel.close()

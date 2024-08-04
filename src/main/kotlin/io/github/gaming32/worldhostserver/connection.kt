@@ -24,9 +24,13 @@ data class Connection(
         return "Connection(id=$id, address=$address, userUuid=$userUuid)"
     }
 
-    suspend fun recvMessage() = socket.recvMessage(decryptCipher)
+    suspend fun recvMessage() = socket.recvMessage(decryptCipher, protocolVersion)
 
-    suspend fun sendMessage(message: WorldHostS2CMessage) = socket.sendMessage(message, encryptCipher)
+    suspend fun sendMessage(message: WorldHostS2CMessage) {
+        if (protocolVersion >= message.firstProtocol) {
+            socket.sendMessage(message, encryptCipher)
+        }
+    }
 }
 
 class ConnectionSetSync {

@@ -21,6 +21,8 @@ sealed interface WorldHostC2SMessage {
     sealed interface MessageFactory<M : WorldHostC2SMessage> {
         val id: Int
 
+        val firstProtocol: Int
+
         val isEncrypted get() = false
 
         fun decode(buf: ByteBuffer): M
@@ -50,9 +52,20 @@ sealed interface WorldHostC2SMessage {
         val <M : WorldHostC2SMessage> MessageFactory<M>.targetType get() =
             this::class.supertypes.first().arguments.single().type?.classifier as KClass<M>
 
-        fun decode(typeId: Int, data: ByteArray, decryptCipher: Cipher? = null): WorldHostC2SMessage {
+        fun decode(
+            typeId: Int, data: ByteArray,
+            decryptCipher: Cipher? = null,
+            maxProtocolVersion: Int? = null
+        ): WorldHostC2SMessage {
             val factory = factoryById[typeId]
-                ?: throw IllegalArgumentException("Received packet with unknown typeId from client: $typeId")
+                ?: throw IllegalArgumentException("Received message with unknown typeId from client: $typeId")
+            if (maxProtocolVersion != null && factory.firstProtocol > maxProtocolVersion) {
+                throw IllegalArgumentException(
+                    "Received too new message from client. " +
+                        "Client has version $maxProtocolVersion, " +
+                        "but ${factory.targetType.simpleName} was added in ${factory.firstProtocol}"
+                )
+            }
             return factory.decode(ByteBuffer.wrap(
                 if (factory.isEncrypted) {
                     checkNotNull(decryptCipher) {
@@ -90,6 +103,8 @@ sealed interface WorldHostC2SMessage {
         companion object : MessageFactory<ListOnline> {
             override val id get() = 0
 
+            override val firstProtocol get() = 2
+
             override fun decode(buf: ByteBuffer) = ListOnline(List(buf.int) { buf.uuid })
         }
 
@@ -107,6 +122,8 @@ sealed interface WorldHostC2SMessage {
     data class FriendRequest(val toUser: UUID) : WorldHostC2SMessage {
         companion object : MessageFactory<FriendRequest> {
             override val id get() = 1
+
+            override val firstProtocol get() = 2
 
             override fun decode(buf: ByteBuffer) = FriendRequest(buf.uuid)
         }
@@ -146,6 +163,8 @@ sealed interface WorldHostC2SMessage {
         companion object : MessageFactory<PublishedWorld> {
             override val id get() = 2
 
+            override val firstProtocol get() = 2
+
             override fun decode(buf: ByteBuffer) = PublishedWorld(List(buf.int) { buf.uuid })
         }
 
@@ -167,6 +186,8 @@ sealed interface WorldHostC2SMessage {
         companion object : MessageFactory<ClosedWorld> {
             override val id get() = 3
 
+            override val firstProtocol get() = 2
+
             override fun decode(buf: ByteBuffer) = ClosedWorld(List(buf.int) { buf.uuid })
         }
 
@@ -185,6 +206,8 @@ sealed interface WorldHostC2SMessage {
     data class RequestJoin(val friend: UUID) : WorldHostC2SMessage {
         companion object : MessageFactory<RequestJoin> {
             override val id get() = 4
+
+            override val firstProtocol get() = 2
 
             override fun decode(buf: ByteBuffer) = RequestJoin(buf.uuid)
         }
@@ -213,6 +236,8 @@ sealed interface WorldHostC2SMessage {
         companion object : MessageFactory<JoinGranted> {
             override val id get() = 5
 
+            override val firstProtocol get() = 2
+
             override fun decode(buf: ByteBuffer) = JoinGranted(buf.cid, JoinType.decode(buf))
         }
 
@@ -229,6 +254,8 @@ sealed interface WorldHostC2SMessage {
     data class QueryRequest(val friends: Collection<UUID>) : WorldHostC2SMessage {
         companion object : MessageFactory<QueryRequest> {
             override val id get() = 6
+
+            override val firstProtocol get() = 2
 
             override fun decode(buf: ByteBuffer) = QueryRequest(List(buf.int) { buf.uuid })
         }
@@ -249,6 +276,8 @@ sealed interface WorldHostC2SMessage {
     data class QueryResponse(val connectionId: ConnectionId, val data: ByteArray) : WorldHostC2SMessage {
         companion object : MessageFactory<QueryResponse> {
             override val id get() = 7
+
+            override val firstProtocol get() = 2
 
             override fun decode(buf: ByteBuffer) = QueryResponse(buf.cid, ByteArray(buf.int).also(buf::get))
         }
@@ -278,6 +307,8 @@ sealed interface WorldHostC2SMessage {
     data class ProxyS2CPacket(val connectionId: Long, val data: ByteArray) : WorldHostC2SMessage {
         companion object : MessageFactory<ProxyS2CPacket> {
             override val id get() = 8
+
+            override val firstProtocol get() = 2
 
             override fun decode(buf: ByteBuffer) = ProxyS2CPacket(buf.long, ByteArray(buf.remaining()).also(buf::get))
         }
@@ -318,6 +349,8 @@ sealed interface WorldHostC2SMessage {
         companion object : MessageFactory<ProxyDisconnect> {
             override val id get() = 9
 
+            override val firstProtocol get() = 2
+
             override fun decode(buf: ByteBuffer) = ProxyDisconnect(buf.long)
         }
 
@@ -340,6 +373,8 @@ sealed interface WorldHostC2SMessage {
         companion object : MessageFactory<RequestDirectJoin> {
             override val id get() = 10
 
+            override val firstProtocol get() = 4
+
             override fun decode(buf: ByteBuffer) = RequestDirectJoin(buf.cid)
         }
 
@@ -358,6 +393,8 @@ sealed interface WorldHostC2SMessage {
     data class NewQueryResponse(val connectionId: ConnectionId, val data: ByteArray) : WorldHostC2SMessage {
         companion object : MessageFactory<NewQueryResponse> {
             override val id get() = 11
+
+            override val firstProtocol get() = 5
 
             override fun decode(buf: ByteBuffer) = NewQueryResponse(buf.cid, ByteArray(buf.remaining()).also(buf::get))
         }
@@ -400,6 +437,8 @@ sealed interface WorldHostC2SMessage {
         companion object : MessageFactory<RequestPunchOpen> {
             override val id get() = 12
 
+            override val firstProtocol get() = 7
+
             override val isEncrypted get() = true
 
             override fun decode(buf: ByteBuffer) = RequestPunchOpen(buf.cid, buf.string, buf.punchCookie)
@@ -430,6 +469,8 @@ sealed interface WorldHostC2SMessage {
     data class PunchRequestInvalid(val cookie: PunchCookie) : WorldHostC2SMessage {
         companion object : MessageFactory<PunchRequestInvalid> {
             override val id get() = 13
+
+            override val firstProtocol get() = 7
 
             override val isEncrypted get() = true
 
