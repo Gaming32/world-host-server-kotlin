@@ -22,6 +22,8 @@ import java.math.BigInteger
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Proxy
+import java.net.StandardSocketOptions
+import java.nio.channels.SocketChannel
 import java.security.KeyPair
 import java.security.SecureRandom
 import java.util.*
@@ -92,6 +94,11 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
         logger.info { "Started WH server on ${serverSocket.localAddress}" }
         while (true) {
             val clientSocket = serverSocket.accept()
+            clientSocket.castOrNull<Selectable>()
+                ?.channel
+                ?.castOrNull<SocketChannel>()
+                ?.setOption(StandardSocketOptions.SO_KEEPALIVE, true)
+                ?: logger.warn { "Failed to enable SO_KEEPALIVE on connected socket" }
             launch {
                 val socket = SocketWrapper(clientSocket)
                 var connection: Connection? = null
