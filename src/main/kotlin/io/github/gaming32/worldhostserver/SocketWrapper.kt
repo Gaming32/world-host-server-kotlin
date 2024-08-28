@@ -1,11 +1,13 @@
 package io.github.gaming32.worldhostserver
 
+import io.github.gaming32.worldhostserver.serialization.byte
 import io.github.gaming32.worldhostserver.serialization.toByteBuf
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.network.sockets.*
 import io.ktor.utils.io.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.nio.ByteBuffer
 import javax.crypto.Cipher
 
 private val logger = KotlinLogging.logger {}
@@ -18,15 +20,16 @@ class SocketWrapper(socket: Socket) {
 
     suspend fun sendMessage(message: WorldHostS2CMessage, encryptCipher: Cipher? = null) = sendLock.withLock {
         val bb = message.toByteBuf()
-        var data = ByteArray(bb.remaining()).also(bb::get)
-        if (message.isEncrypted) {
-            data = checkNotNull(encryptCipher) {
-                "Attempted to send encrypted message $message without a cipher"
-            }.update(data)
+        val outBuf = ByteBuffer.allocate(bb.remaining() + 5)
+        outBuf.putInt(bb.remaining() + 1)
+        outBuf.put(message.typeId)
+        outBuf.put(bb)
+        outBuf.flip()
+        if (encryptCipher != null) {
+            encryptCipher.update(outBuf.duplicate(), outBuf)
+            outBuf.flip()
         }
-        writeChannel.writeInt(data.size + 1)
-        writeChannel.writeByte(message.typeId)
-        writeChannel.writeFully(data)
+        writeChannel.writeFully(outBuf)
         writeChannel.flush()
     }
 
@@ -34,8 +37,8 @@ class SocketWrapper(socket: Socket) {
         decryptCipher: Cipher? = null,
         maxProtocolVersion: Int? = null
     ) = recvLock.withLock {
-        val size = readChannel.readInt() - 1
-        if (size < 0) {
+        val size = readChannel.readEncrypted(4, decryptCipher).int
+        if (size == 0) {
             "Message is empty".let {
                 closeError(it)
                 throw IllegalArgumentException(it)
@@ -45,9 +48,9 @@ class SocketWrapper(socket: Socket) {
             readChannel.discardExact(size.toLong())
             throw IllegalArgumentException("Messages bigger than 2 MB are not allowed.")
         }
-        val typeId = readChannel.readByte().toUByte().toInt()
-        val data = ByteArray(size).also { readChannel.readFully(it) }
-        WorldHostC2SMessage.decode(typeId, data, decryptCipher, maxProtocolVersion)
+        val data = readChannel.readEncrypted(size, decryptCipher)
+        val typeId = data.byte.toUByte().toInt()
+        WorldHostC2SMessage.decode(typeId, data, maxProtocolVersion)
     }
 
     fun close() = writeChannel.close()
@@ -60,4 +63,15 @@ class SocketWrapper(socket: Socket) {
         }
         close()
     }
+}
+
+private suspend fun ByteReadChannel.readEncrypted(length: Int, decryptCipher: Cipher?): ByteBuffer {
+    val buffer = ByteBuffer.allocate(length)
+    readFully(buffer)
+    buffer.flip()
+    if (decryptCipher != null) {
+        decryptCipher.update(buffer.duplicate(), buffer)
+        buffer.flip()
+    }
+    return buffer
 }

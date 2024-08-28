@@ -10,7 +10,6 @@ private val logger = KotlinLogging.logger {}
 sealed interface WorldHostS2CMessage : FieldedSerializer {
     val typeId: Byte
     val firstProtocol: Int
-    val isEncrypted get() = false
 
     data class Error(val message: String, val critical: Boolean = false) : WorldHostS2CMessage {
         override val typeId: Byte get() = 0
@@ -224,34 +223,29 @@ sealed interface WorldHostS2CMessage : FieldedSerializer {
         override val typeId: Byte get() = 18
         override val firstProtocol get() = 7
         override val fields = listOf(punchId, purpose, fromHost, fromPort.toShort(), connectionId, user, security)
-        override val isEncrypted get() = true
     }
 
     data class CancelPortLookup(val lookupId: UUID) : WorldHostS2CMessage {
         override val typeId: Byte get() = 19
         override val firstProtocol get() = 7
         override val fields = listOf(lookupId)
-        override val isEncrypted get() = true
     }
 
     data class PortLookupSuccess(val lookupId: UUID, val host: String, val port: Int) : WorldHostS2CMessage {
         override val typeId: Byte get() = 20
         override val firstProtocol get() = 7
         override val fields = listOf(lookupId, host, port.toShort())
-        override val isEncrypted get() = true
     }
 
     data class PunchRequestCancelled(val punchId: UUID) : WorldHostS2CMessage {
         override val typeId: Byte get() = 21
         override val firstProtocol get() = 7
         override val fields = listOf(punchId)
-        override val isEncrypted get() = true
     }
 
     data class PunchSuccess(val punchId: UUID, val host: String, val port: Int) : WorldHostS2CMessage {
         override val typeId: Byte get() = 22
         override val firstProtocol get() = 7
         override val fields = listOf(punchId, host, port.toShort())
-        override val isEncrypted get() = true
     }
 }

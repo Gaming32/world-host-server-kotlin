@@ -10,7 +10,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.ClosedSendChannelException
 import java.nio.ByteBuffer
 import java.util.*
-import javax.crypto.Cipher
 import kotlin.reflect.KClass
 import kotlin.reflect.full.companionObjectInstance
 
@@ -21,8 +20,6 @@ sealed interface WorldHostC2SMessage {
         val id: Int
 
         val firstProtocol: Int
-
-        val isEncrypted get() = false
 
         fun decode(buf: ByteBuffer): M
     }
@@ -51,11 +48,7 @@ sealed interface WorldHostC2SMessage {
         val <M : WorldHostC2SMessage> MessageFactory<M>.targetType get() =
             this::class.supertypes.first().arguments.single().type?.classifier as KClass<M>
 
-        fun decode(
-            typeId: Int, data: ByteArray,
-            decryptCipher: Cipher? = null,
-            maxProtocolVersion: Int? = null
-        ): WorldHostC2SMessage {
+        fun decode(typeId: Int, data: ByteBuffer, maxProtocolVersion: Int? = null): WorldHostC2SMessage {
             val factory = factoryById[typeId]
                 ?: throw IllegalArgumentException("Received message with unknown typeId from client: $typeId")
             if (maxProtocolVersion != null && factory.firstProtocol > maxProtocolVersion) {
@@ -65,15 +58,7 @@ sealed interface WorldHostC2SMessage {
                         "but ${factory.targetType.simpleName} was added in ${factory.firstProtocol}"
                 )
             }
-            return factory.decode(ByteBuffer.wrap(
-                if (factory.isEncrypted) {
-                    checkNotNull(decryptCipher) {
-                        "Attempted to receive encrypted message $typeId without a cipher"
-                    }.update(data)
-                } else {
-                    data
-                }
-            ))
+            return factory.decode(data)
         }
     }
 
@@ -440,8 +425,6 @@ sealed interface WorldHostC2SMessage {
 
             override val firstProtocol get() = 7
 
-            override val isEncrypted get() = true
-
             override fun decode(buf: ByteBuffer) =
                 RequestPunchOpen(buf.cid, buf.string, buf.uuid, buf.string, buf.short.toUShort().toInt())
         }
@@ -464,8 +447,6 @@ sealed interface WorldHostC2SMessage {
 
             override val firstProtocol get() = 7
 
-            override val isEncrypted get() = true
-
             override fun decode(buf: ByteBuffer) = PunchFailed(buf.cid, buf.uuid)
         }
 
@@ -480,8 +461,6 @@ sealed interface WorldHostC2SMessage {
             override val id get() = 14
 
             override val firstProtocol get() = 7
-
-            override val isEncrypted get() = true
 
             override fun decode(buf: ByteBuffer) = BeginPortLookup(buf.uuid)
         }
@@ -507,8 +486,6 @@ sealed interface WorldHostC2SMessage {
             override val id get() = 15
 
             override val firstProtocol get() = 7
-
-            override val isEncrypted get() = true
 
             override fun decode(buf: ByteBuffer) =
                 PunchSuccess(buf.cid, buf.uuid, buf.string, buf.short.toUShort().toInt())

@@ -32,19 +32,6 @@ import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTimedValue
 
-const val PROTOCOL_VERSION = 7
-const val STABLE_PROTOCOL_VERSION = 6
-const val NEW_AUTH_PROTOCOL = 6
-val SUPPORTED_PROTOCOLS = 2..PROTOCOL_VERSION
-val PROTOCOL_VERSION_MAP = mapOf(
-    2 to "0.3.2",
-    3 to "0.3.4",
-    4 to "0.4.3",
-    5 to "0.4.4",
-    6 to "0.4.14",
-    7 to "0.4.15",
-)
-
 private const val KEY_PREFIX = 0xFAFA0000.toInt()
 
 @OptIn(ExperimentalSerializationApi::class)
@@ -57,13 +44,9 @@ private val logger = KotlinLogging.logger {}
 private val sessionService = YggdrasilAuthenticationService(Proxy.NO_PROXY).createMinecraftSessionService()
 
 suspend fun WorldHostServer.runMainServer() = coroutineScope {
-    if (!SUPPORTED_PROTOCOLS.all(PROTOCOL_VERSION_MAP::containsKey)) {
-        throw AssertionError(
-            "PROTOCOL_VERSION_MAP missing the following keys: " +
-                (SUPPORTED_PROTOCOLS.toSet() - PROTOCOL_VERSION_MAP.keys).joinToString()
-        )
-    }
-    WorldHostC2SMessage // Force initialize
+    // Forced initializations
+    ProtocolVersions
+    WorldHostC2SMessage
 
     val ipInfoMap = run {
         logger.info { "Downloading IP info map..." }
@@ -120,20 +103,20 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                         return@launch
                     }
 
-                    if (protocolVersion !in SUPPORTED_PROTOCOLS) {
+                    if (protocolVersion !in ProtocolVersions.SUPPORTED) {
                         return@launch socket.closeError("Unsupported protocol version $protocolVersion")
                     }
 
                     @Suppress("UNNECESSARY_NOT_NULL_ASSERTION") // I have several questions
                     connection = try {
-                        val handshakeResult = if (protocolVersion < NEW_AUTH_PROTOCOL) {
+                        val handshakeResult = if (protocolVersion < ProtocolVersions.NEW_AUTH_PROTOCOL) {
                             Result.success(HandshakeResult(
                                 socket.readChannel.readUuid(),
                                 ConnectionId(socket.readChannel.readLong()),
                                 null, null
                             ))
                         } else {
-                            performHandshake(socket, keyPair)
+                            performHandshake(socket, keyPair, protocolVersion >= ProtocolVersions.ENCRYPTED_PROTOCOL)
                         }.getOrElse {
                             logger.warn { "Handshake from $remoteAddr failed: ${it.message}" }
                             socket.closeError("Handshake failed: ${it.message}")
@@ -166,7 +149,11 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                     logger.info { "Connection opened: $connection" }
 
                     val latestVisibleProtocolVersion =
-                        if (protocolVersion <= STABLE_PROTOCOL_VERSION) STABLE_PROTOCOL_VERSION else PROTOCOL_VERSION
+                        if (protocolVersion <= ProtocolVersions.STABLE) {
+                            ProtocolVersions.STABLE
+                        } else {
+                            ProtocolVersions.CURRENT
+                        }
                     connection.sendMessage(WorldHostS2CMessage.ConnectionInfo(
                         connection.id,
                         config.baseAddr ?: "",
@@ -179,10 +166,10 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                         logger.warn {
                             "Client ${connection.id} has an outdated client! " +
                                 "Client version: $protocolVersion. " +
-                                "Server version: $PROTOCOL_VERSION (stable $STABLE_PROTOCOL_VERSION)."
+                                "Server version: ${ProtocolVersions.CURRENT} (stable ${ProtocolVersions.STABLE})."
                         }
                         connection.sendMessage(WorldHostS2CMessage.OutdatedWorldHost(
-                            PROTOCOL_VERSION_MAP.getValue(latestVisibleProtocolVersion)
+                            ProtocolVersions.TO_NAME.getValue(latestVisibleProtocolVersion)
                         ))
                     }
 
@@ -190,7 +177,7 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                         // Using Error because Warning was only added in this protocol version
                         connection.sendMessage(WorldHostS2CMessage.Error(
                             "You are using an old insecure version of World Host. It is highly recommended that " +
-                                "you update to ${PROTOCOL_VERSION_MAP[NEW_AUTH_PROTOCOL]} or later."
+                                "you update to ${ProtocolVersions.TO_NAME[ProtocolVersions.NEW_AUTH_PROTOCOL]} or later."
                         ))
                     }
 
@@ -296,7 +283,8 @@ private data class HandshakeResult(
 
 private suspend fun performHandshake(
     socket: SocketWrapper,
-    keyPair: KeyPair
+    keyPair: KeyPair,
+    supportsEncryption: Boolean
 ): Result<HandshakeResult> {
     socket.writeChannel.writeInt(KEY_PREFIX)
     socket.writeChannel.flush()
@@ -334,8 +322,8 @@ private suspend fun performHandshake(
 
     return Result.success(HandshakeResult(
         requestedUuid, connectionId,
-        MinecraftCrypt.getCipher(Cipher.DECRYPT_MODE, secretKey),
-        MinecraftCrypt.getCipher(Cipher.ENCRYPT_MODE, secretKey),
+        if (supportsEncryption) MinecraftCrypt.getCipher(Cipher.DECRYPT_MODE, secretKey) else null,
+        if (supportsEncryption) MinecraftCrypt.getCipher(Cipher.ENCRYPT_MODE, secretKey) else null,
         warning = verifyResult.takeIf(VerifyProfileResult::isMismatch)?.messageWithUuidInfo()
     ))
 }

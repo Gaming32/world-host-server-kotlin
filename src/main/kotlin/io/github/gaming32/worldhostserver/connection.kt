@@ -18,7 +18,9 @@ data class Connection(
     var open: Boolean = true,
     val openToFriends: MutableSet<UUID> = mutableSetOf()
 ) {
-    val securityLevel get() = SecurityLevel.from(userUuid, secureAuth = protocolVersion >= NEW_AUTH_PROTOCOL)
+    val securityLevel get() = SecurityLevel.from(
+        userUuid, secureAuth = protocolVersion >= ProtocolVersions.NEW_AUTH_PROTOCOL
+    )
 
     override fun toString(): String {
         return "Connection(id=$id, address=$address, userUuid=$userUuid)"
