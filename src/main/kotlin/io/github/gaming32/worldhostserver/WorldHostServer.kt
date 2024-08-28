@@ -47,9 +47,9 @@ class WorldHostServer(val config: Config) {
 
     val receivedFriendRequests = LockedObject(mutableMapOf<UUID, MutableSet<UUID>>())
 
-    val punchRequests = LockedObject(mutableMapOf<PunchCookie, ActivePunchRequest>())
+    val portLookups = LockedObject(mutableMapOf<UUID, ActivePortLookup>())
 
-    val punchRequestsByExpiryAtSecond = LockedObject(mutableMapOf<Long, MutableList<PunchCookie>>())
+    val portLookupsByExpiryAtSecond = LockedObject(mutableMapOf<Long, MutableList<UUID>>())
 
     suspend fun run() = coroutineScope {
         logger.info { "Starting world-host-server $SERVER_VERSION with $config" }

@@ -213,35 +213,45 @@ sealed interface WorldHostS2CMessage : FieldedSerializer {
     }
 
     data class PunchOpenRequest(
-        val cookie: PunchCookie,
+        val punchId: UUID,
         val purpose: String,
+        val fromHost: String,
+        val fromPort: Int,
+        val connectionId: ConnectionId,
         val user: UUID,
         val security: SecurityLevel
     ) : WorldHostS2CMessage {
         override val typeId: Byte get() = 18
         override val firstProtocol get() = 7
-        override val fields = listOf(cookie, purpose, user, security)
+        override val fields = listOf(punchId, purpose, fromHost, fromPort.toShort(), connectionId, user, security)
         override val isEncrypted get() = true
     }
 
-    data class StopPunchRetransmit(val cookie: PunchCookie) : WorldHostS2CMessage {
+    data class CancelPortLookup(val lookupId: UUID) : WorldHostS2CMessage {
         override val typeId: Byte get() = 19
         override val firstProtocol get() = 7
-        override val fields = listOf(cookie)
+        override val fields = listOf(lookupId)
         override val isEncrypted get() = true
     }
 
-    data class PunchRequestSuccess(val cookie: PunchCookie, val host: String, val port: Int) : WorldHostS2CMessage {
+    data class PortLookupSuccess(val lookupId: UUID, val host: String, val port: Int) : WorldHostS2CMessage {
         override val typeId: Byte get() = 20
         override val firstProtocol get() = 7
-        override val fields = listOf(cookie, host, port.toShort())
+        override val fields = listOf(lookupId, host, port.toShort())
         override val isEncrypted get() = true
     }
 
-    data class PunchRequestCancelled(val cookie: PunchCookie) : WorldHostS2CMessage {
+    data class PunchRequestCancelled(val punchId: UUID) : WorldHostS2CMessage {
         override val typeId: Byte get() = 21
         override val firstProtocol get() = 7
-        override val fields = listOf(cookie)
+        override val fields = listOf(punchId)
+        override val isEncrypted get() = true
+    }
+
+    data class PunchSuccess(val punchId: UUID, val host: String, val port: Int) : WorldHostS2CMessage {
+        override val typeId: Byte get() = 22
+        override val firstProtocol get() = 7
+        override val fields = listOf(punchId, host, port.toShort())
         override val isEncrypted get() = true
     }
 }

@@ -1,7 +1,6 @@
 package io.github.gaming32.worldhostserver
 
 import io.github.gaming32.worldhostserver.serialization.cid
-import io.github.gaming32.worldhostserver.serialization.punchCookie
 import io.github.gaming32.worldhostserver.serialization.string
 import io.github.gaming32.worldhostserver.serialization.uuid
 import io.github.gaming32.worldhostserver.util.addWithCircleLimit
@@ -432,7 +431,9 @@ sealed interface WorldHostC2SMessage {
     data class RequestPunchOpen(
         val targetConnection: ConnectionId,
         val purpose: String,
-        val cookie: PunchCookie
+        val punchId: UUID,
+        val myHost: String,
+        val myPort: Int
     ) : WorldHostC2SMessage {
         companion object : MessageFactory<RequestPunchOpen> {
             override val id get() = 12
@@ -441,46 +442,81 @@ sealed interface WorldHostC2SMessage {
 
             override val isEncrypted get() = true
 
-            override fun decode(buf: ByteBuffer) = RequestPunchOpen(buf.cid, buf.string, buf.punchCookie)
+            override fun decode(buf: ByteBuffer) =
+                RequestPunchOpen(buf.cid, buf.string, buf.uuid, buf.string, buf.short.toUShort().toInt())
         }
 
         override suspend fun HandleContext.handle() {
             val targetClient = server.whConnections.byId(targetConnection)
-                ?: return connection.sendSafely(WorldHostS2CMessage.PunchRequestCancelled(cookie))
-            val request = ActivePunchRequest(cookie, connection.id, targetConnection)
-            val oldRequest = server.punchRequests.withLock { putIfAbsent(cookie, request) }
-            if (oldRequest != null) {
-                connection.sendSafely(WorldHostS2CMessage.PunchRequestCancelled(cookie))
-                connection.sendSafely(WorldHostS2CMessage.Error("Duplicate punch cookie $cookie"))
-                return
-            }
+                ?: return connection.sendSafely(WorldHostS2CMessage.PunchRequestCancelled(punchId))
             if (targetClient.protocolVersion < 7) {
-                return connection.sendSafely(WorldHostS2CMessage.PunchRequestCancelled(cookie))
-            }
-            server.punchRequestsByExpiryAtSecond.withLock {
-                getOrPut(System.currentTimeMillis() / 1000L + PUNCH_REQUEST_EXPIRY) { mutableListOf() }.add(cookie)
+                return connection.sendSafely(WorldHostS2CMessage.PunchRequestCancelled(punchId))
             }
             targetClient.sendSafely(WorldHostS2CMessage.PunchOpenRequest(
-                cookie, purpose, connection.userUuid, connection.securityLevel
+                punchId, purpose, myHost, myPort, connection.id, connection.userUuid, connection.securityLevel
             ))
         }
     }
 
-    data class PunchRequestInvalid(val cookie: PunchCookie) : WorldHostC2SMessage {
-        companion object : MessageFactory<PunchRequestInvalid> {
+    data class PunchFailed(val targetConnection: ConnectionId, val punchId: UUID) : WorldHostC2SMessage {
+        companion object : MessageFactory<PunchFailed> {
             override val id get() = 13
 
             override val firstProtocol get() = 7
 
             override val isEncrypted get() = true
 
-            override fun decode(buf: ByteBuffer) = PunchRequestInvalid(buf.punchCookie)
+            override fun decode(buf: ByteBuffer) = PunchFailed(buf.cid, buf.uuid)
         }
 
         override suspend fun HandleContext.handle() {
-            val request = server.punchRequests.withLock { remove(cookie) } ?: return
-            server.whConnections.byId(request.sourceClient)
-                ?.sendSafely(WorldHostS2CMessage.PunchRequestCancelled(cookie))
+            server.whConnections.byId(targetConnection)
+                ?.sendSafely(WorldHostS2CMessage.PunchRequestCancelled(punchId))
+        }
+    }
+
+    data class BeginPortLookup(val lookupId: UUID) : WorldHostC2SMessage {
+        companion object : MessageFactory<BeginPortLookup> {
+            override val id get() = 14
+
+            override val firstProtocol get() = 7
+
+            override val isEncrypted get() = true
+
+            override fun decode(buf: ByteBuffer) = BeginPortLookup(buf.uuid)
+        }
+
+        override suspend fun HandleContext.handle() {
+            val request = ActivePortLookup(lookupId, connection.id)
+            val oldRequest = server.portLookups.withLock { putIfAbsent(lookupId, request) }
+            if (oldRequest != null) {
+                connection.sendSafely(WorldHostS2CMessage.CancelPortLookup(lookupId))
+                connection.sendSafely(WorldHostS2CMessage.Error("Duplicate lookup ID $lookupId"))
+                return
+            }
+            server.portLookupsByExpiryAtSecond.withLock {
+                getOrPut(System.currentTimeMillis() / 1000L + PORT_LOOKUP_EXPIRY) { mutableListOf() }.add(lookupId)
+            }
+        }
+    }
+
+    data class PunchSuccess(
+        val connectionId: ConnectionId, val punchId: UUID, val host: String, val port: Int
+    ) : WorldHostC2SMessage {
+        companion object : MessageFactory<PunchSuccess> {
+            override val id get() = 15
+
+            override val firstProtocol get() = 7
+
+            override val isEncrypted get() = true
+
+            override fun decode(buf: ByteBuffer) =
+                PunchSuccess(buf.cid, buf.uuid, buf.string, buf.short.toUShort().toInt())
+        }
+
+        override suspend fun HandleContext.handle() {
+            server.whConnections.byId(connectionId)
+                ?.sendSafely(WorldHostS2CMessage.PunchSuccess(punchId, host, port))
         }
     }
 }
