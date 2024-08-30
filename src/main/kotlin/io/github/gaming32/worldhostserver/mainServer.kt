@@ -386,11 +386,20 @@ private suspend fun verifyProfile(
             )
         }
     } else {
-        VerifyProfileResult(
-            requestedUuid,
-            UUID.nameUUIDFromBytes("OfflinePlayer:$requestedUsername".encodeToByteArray()),
-            "Mismatched offline UUID. Some features may not work as intended.",
-            mismatchIsError = false,
-            includeUuidInfo = true
-        )
+        val offlineUuid = UUID.nameUUIDFromBytes("OfflinePlayer:$requestedUsername".encodeToByteArray())
+        if (requestedUuid == NIL_UUID || requestedUuid == MAX_UUID) {
+            VerifyProfileResult(
+                requestedUuid, offlineUuid,
+                "Reserved special UUID not allowed.",
+                mismatchIsError = true,
+                includeUuidInfo = true
+            )
+        } else {
+            VerifyProfileResult(
+                requestedUuid, offlineUuid,
+                "Mismatched offline UUID. Some features may not work as intended.",
+                mismatchIsError = false,
+                includeUuidInfo = true
+            )
+        }
     }

@@ -5,13 +5,14 @@ import kotlinx.cli.ArgType
 import kotlinx.cli.ParsingException
 import kotlinx.coroutines.sync.Mutex
 import java.net.SocketException
-import java.util.UUID
+import java.util.*
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
 import kotlin.time.Duration
 
 val NIL_UUID = UUID(0L, 0L)
+val MAX_UUID = UUID(-1L, -1L)
 
 object DurationArgType : ArgType<Duration>(true) {
     override val description get() = "{ Duration }"
