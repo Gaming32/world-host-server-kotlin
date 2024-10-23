@@ -92,20 +92,20 @@ suspend fun WorldHostServer.runProxyServer() = coroutineScope {
                     val buffer = ByteArray(64 * 1024)
                     proxyLoop@ while (!sendChannel.isClosedForWrite) {
                         if (!connection!!.open) {
-                            sendChannel.close()
+                            sendChannel.flushAndClose()
                             break
                         }
                         val n = receiveChannel.readAvailable(buffer)
                         if (n == 0) continue
                         if (n == -1) {
-                            sendChannel.close()
+                            sendChannel.flushAndClose()
                             break
                         }
                         if (!connection.open) {
                             val failureStart = System.currentTimeMillis()
                             do {
                                 if ((System.currentTimeMillis() - failureStart) > 5000) {
-                                    sendChannel.close()
+                                    sendChannel.flushAndClose()
                                     break@proxyLoop
                                 }
                                 yield()
@@ -166,5 +166,5 @@ private suspend fun disconnect(sendChannel: ByteWriteChannel, nextState: Int, me
         sendChannel.flush()
     }
 
-    sendChannel.close()
+    sendChannel.flushAndClose()
 }

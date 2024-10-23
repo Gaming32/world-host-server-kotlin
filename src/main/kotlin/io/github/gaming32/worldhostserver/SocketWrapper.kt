@@ -53,7 +53,7 @@ class SocketWrapper(socket: Socket) {
         WorldHostC2SMessage.decode(typeId, data, maxProtocolVersion)
     }
 
-    fun close() = writeChannel.close()
+    suspend fun close() = writeChannel.flushAndClose()
 
     suspend fun closeError(message: String) {
         try {

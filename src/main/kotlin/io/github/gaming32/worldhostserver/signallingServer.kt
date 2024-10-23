@@ -5,13 +5,12 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
 import io.ktor.util.network.*
-import io.ktor.utils.io.core.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.io.readByteArray
 import java.nio.ByteBuffer
-import kotlin.io.use
 
 private val logger = KotlinLogging.logger {}
 
@@ -29,7 +28,7 @@ suspend fun WorldHostServer.runSignallingServer() = coroutineScope {
             val signal = serverSocket.receive()
             launch {
                 try {
-                    val lookupId = ByteBuffer.wrap(signal.packet.readBytes(16)).uuid
+                    val lookupId = ByteBuffer.wrap(signal.packet.readByteArray(16)).uuid
                     val address = signal.address.toJavaAddress()
                     val request = portLookups.withLock { remove(lookupId) } ?: return@launch
                     whConnections.byId(request.sourceClient)

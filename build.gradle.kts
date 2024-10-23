@@ -5,16 +5,16 @@ import org.jetbrains.gradle.ext.settings
 
 plugins {
     application
-    kotlin("jvm") version "2.0.0"
-    kotlin("plugin.serialization") version "2.0.0"
-    id("net.raphimc.class-token-replacer") version "1.1.2"
-    id("org.jetbrains.gradle.plugin.idea-ext") version "1.1.8"
+    kotlin("jvm") version "2.0.21"
+    kotlin("plugin.serialization") version "2.0.21"
+    id("net.raphimc.class-token-replacer") version "1.1.3"
+    id("org.jetbrains.gradle.plugin.idea-ext") version "1.1.9"
 }
 
 group = "io.github.gaming32"
 version = "0.4.6"
 
-val ktorVersion = "2.3.12"
+val ktorVersion = "3.0.0"
 
 application {
     mainClass.set("io.github.gaming32.worldhostserver.MainKt")
@@ -35,9 +35,9 @@ repositories {
 dependencies {
     implementation(kotlin("reflect"))
 
-    implementation("org.slf4j:slf4j-api:2.0.13")
-    implementation("org.apache.logging.log4j:log4j-slf4j2-impl:2.23.1")
-    implementation("org.apache.logging.log4j:log4j-core:2.23.1")
+    implementation("org.slf4j:slf4j-api:2.0.16")
+    implementation("org.apache.logging.log4j:log4j-slf4j2-impl:2.24.1")
+    implementation("org.apache.logging.log4j:log4j-core:2.24.1")
     implementation("io.github.oshai:kotlin-logging-jvm:7.0.0")
 
     implementation("io.ktor:ktor-network:$ktorVersion")
@@ -46,11 +46,11 @@ dependencies {
     implementation("io.ktor:ktor-client-content-negotiation:$ktorVersion")
     implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
 
-    implementation("org.apache.commons:commons-csv:1.11.0")
+    implementation("org.apache.commons:commons-csv:1.12.0")
 
-    implementation("com.mojang:authlib:6.0.54")
+    implementation("com.mojang:authlib:6.0.55")
 
-    implementation("org.jetbrains.kotlinx:kotlinx-cli:0.3.5")
+    implementation("org.jetbrains.kotlinx:kotlinx-cli:0.3.6")
 
     testImplementation(kotlin("test"))
 }

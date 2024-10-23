@@ -1,9 +1,9 @@
 package io.github.gaming32.worldhostserver.util
 
-import io.ktor.utils.io.errors.*
 import kotlinx.cli.ArgType
 import kotlinx.cli.ParsingException
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.io.IOException
 import java.net.SocketException
 import java.util.*
 import kotlin.contracts.ExperimentalContracts

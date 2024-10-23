@@ -342,7 +342,7 @@ sealed interface WorldHostC2SMessage {
             server.proxyConnections.withLock {
                 this[connectionId]?.let { (cid, channel) ->
                     if (cid == connection.id) {
-                        channel.close()
+                        channel.flushAndClose()
                     } else {
                         connection.sendSafely(WorldHostS2CMessage.Error(
                             "Cannot disconnect a connection that's not your own."
