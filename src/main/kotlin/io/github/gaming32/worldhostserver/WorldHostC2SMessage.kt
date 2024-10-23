@@ -418,15 +418,20 @@ sealed interface WorldHostC2SMessage {
         val purpose: String,
         val punchId: UUID,
         val myHost: String,
-        val myPort: Int
+        val myPort: Int,
+        val myLocalHost: String,
+        val myLocalPort: Int
     ) : WorldHostC2SMessage {
         companion object : MessageFactory<RequestPunchOpen> {
             override val id get() = 12
 
             override val firstProtocol get() = 7
 
-            override fun decode(buf: ByteBuffer) =
-                RequestPunchOpen(buf.cid, buf.string, buf.uuid, buf.string, buf.short.toUShort().toInt())
+            override fun decode(buf: ByteBuffer) = RequestPunchOpen(
+                buf.cid, buf.string, buf.uuid,
+                buf.string, buf.short.toUShort().toInt(),
+                buf.string, buf.short.toUShort().toInt()
+            )
         }
 
         override suspend fun HandleContext.handle() {
