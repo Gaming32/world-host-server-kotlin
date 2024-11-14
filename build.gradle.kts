@@ -14,7 +14,7 @@ plugins {
 group = "io.github.gaming32"
 version = "0.4.6"
 
-val ktorVersion = "3.0.0"
+val ktorVersion = "3.0.1"
 
 application {
     mainClass.set("io.github.gaming32.worldhostserver.MainKt")
