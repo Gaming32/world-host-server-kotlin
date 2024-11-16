@@ -7,6 +7,8 @@ import io.ktor.network.sockets.*
 import io.ktor.utils.io.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.yield
+import kotlinx.io.readAtMostTo
 import java.nio.ByteBuffer
 import javax.crypto.Cipher
 
@@ -74,4 +76,16 @@ private suspend fun ByteReadChannel.readEncrypted(length: Int, decryptCipher: Ci
         buffer.flip()
     }
     return buffer
+}
+
+// TODO: Remove when readFully from Ktor is fixed
+@OptIn(InternalAPI::class)
+private suspend fun ByteReadChannel.readFully(buffer: ByteBuffer) {
+    while (buffer.hasRemaining()) {
+        if (availableForRead == 0) {
+            awaitContent()
+            yield() // WH: Actually yield to avoid blocking
+        }
+        readBuffer.readAtMostTo(buffer)
+    }
 }
