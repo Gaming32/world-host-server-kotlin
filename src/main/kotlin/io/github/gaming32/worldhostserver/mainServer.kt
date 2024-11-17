@@ -110,21 +110,29 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                     @Suppress("UNNECESSARY_NOT_NULL_ASSERTION") // I have several questions
                     connection = try {
                         val handshakeResult = if (protocolVersion < ProtocolVersions.NEW_AUTH_PROTOCOL) {
-                            Result.success(HandshakeResult(
+                            HandshakeResult(
                                 socket.readChannel.readUuid(),
                                 ConnectionId(socket.readChannel.readLong()),
-                                null, null
-                            ))
+                                null, null,
+                            )
                         } else {
                             performHandshake(socket, keyPair, protocolVersion >= ProtocolVersions.ENCRYPTED_PROTOCOL)
-                        }.getOrElse {
-                            logger.warn { "Handshake from $remoteAddr failed: ${it.message}" }
-                            socket.closeError("Handshake failed: ${it.message}")
-                            return@launch
                         }
-                        handshakeResult.warning?.let {
-                            logger.warn { "Warning in handshake from $remoteAddr: $it" }
-                            socket.sendMessage(WorldHostS2CMessage.Warning(it, important = false))
+                        if (handshakeResult.success) {
+                            handshakeResult.message?.let {
+                                logger.warn { "Warning in handshake from $remoteAddr: $it" }
+                                socket.sendMessage(
+                                    WorldHostS2CMessage.Warning(it, important = false),
+                                    handshakeResult.encryptCipher
+                                )
+                            }
+                        } else {
+                            logger.warn { "Handshake from $remoteAddr failed: ${handshakeResult.message}" }
+                            socket.closeError(
+                                "Handshake failed: ${handshakeResult.message}",
+                                handshakeResult.encryptCipher
+                            )
+                            return@launch
                         }
                         Connection(
                             handshakeResult.connectionId,
@@ -278,14 +286,15 @@ private data class HandshakeResult(
     val connectionId: ConnectionId,
     val decryptCipher: Cipher?,
     val encryptCipher: Cipher?,
-    val warning: String? = null,
+    val success: Boolean = true,
+    val message: String? = null,
 )
 
 private suspend fun performHandshake(
     socket: SocketWrapper,
     keyPair: KeyPair,
     supportsEncryption: Boolean
-): Result<HandshakeResult> {
+): HandshakeResult {
     socket.writeChannel.writeInt(KEY_PREFIX)
     socket.writeChannel.flush()
 
@@ -301,10 +310,6 @@ private suspend fun performHandshake(
     val encryptedChallenge = ByteArray(socket.readChannel.readShort().toUShort().toInt())
     socket.readChannel.readFully(encryptedChallenge)
 
-    if (!challenge.contentEquals(MinecraftCrypt.decryptUsingKey(keyPair.private, encryptedChallenge))) {
-        return Result.failure(IllegalStateException("Challenge failed"))
-    }
-
     val encryptedSecretKey = ByteArray(socket.readChannel.readShort().toUShort().toInt())
     socket.readChannel.readFully(encryptedSecretKey)
 
@@ -315,17 +320,24 @@ private suspend fun performHandshake(
     val requestedUsername = socket.readChannel.readString()
     val connectionId = ConnectionId(socket.readChannel.readLong())
 
-    val verifyResult = verifyProfile(requestedUuid, requestedUsername, authKey)
-    if (verifyResult.isMismatch && verifyResult.mismatchIsError) {
-        return Result.failure(IllegalStateException(verifyResult.messageWithUuidInfo()))
+    if (!challenge.contentEquals(MinecraftCrypt.decryptUsingKey(keyPair.private, encryptedChallenge))) {
+        return HandshakeResult(
+            requestedUuid, connectionId,
+            if (supportsEncryption) MinecraftCrypt.getCipher(Cipher.DECRYPT_MODE, secretKey) else null,
+            if (supportsEncryption) MinecraftCrypt.getCipher(Cipher.ENCRYPT_MODE, secretKey) else null,
+            success = false,
+            message = "Challenge failed"
+        )
     }
 
-    return Result.success(HandshakeResult(
+    val verifyResult = verifyProfile(requestedUuid, requestedUsername, authKey)
+    return HandshakeResult(
         requestedUuid, connectionId,
         if (supportsEncryption) MinecraftCrypt.getCipher(Cipher.DECRYPT_MODE, secretKey) else null,
         if (supportsEncryption) MinecraftCrypt.getCipher(Cipher.ENCRYPT_MODE, secretKey) else null,
-        warning = verifyResult.takeIf(VerifyProfileResult::isMismatch)?.messageWithUuidInfo()
-    ))
+        success = !verifyResult.isMismatch || !verifyResult.mismatchIsError,
+        message = verifyResult.takeIf(VerifyProfileResult::isMismatch)?.messageWithUuidInfo()
+    )
 }
 
 private suspend fun ByteReadChannel.readString() =

@@ -57,9 +57,9 @@ class SocketWrapper(socket: Socket) {
 
     suspend fun close() = writeChannel.flushAndClose()
 
-    suspend fun closeError(message: String) {
+    suspend fun closeError(message: String, encryptCipher: Cipher? = null) {
         try {
-            sendMessage(WorldHostS2CMessage.Error(message, true), null)
+            sendMessage(WorldHostS2CMessage.Error(message, true), encryptCipher)
         } catch (e: Exception) {
             logger.warn(e) { "Error in critical error sending (message \"$message\")" }
         }
