@@ -320,11 +320,12 @@ private suspend fun performHandshake(
     val requestedUsername = socket.readChannel.readString()
     val connectionId = ConnectionId(socket.readChannel.readLong())
 
+    val decryptCipher = if (supportsEncryption) MinecraftCrypt.getCipher(Cipher.DECRYPT_MODE, secretKey) else null
+    val encryptCipher = if (supportsEncryption) MinecraftCrypt.getCipher(Cipher.ENCRYPT_MODE, secretKey) else null
+
     if (!challenge.contentEquals(MinecraftCrypt.decryptUsingKey(keyPair.private, encryptedChallenge))) {
         return HandshakeResult(
-            requestedUuid, connectionId,
-            if (supportsEncryption) MinecraftCrypt.getCipher(Cipher.DECRYPT_MODE, secretKey) else null,
-            if (supportsEncryption) MinecraftCrypt.getCipher(Cipher.ENCRYPT_MODE, secretKey) else null,
+            requestedUuid, connectionId, decryptCipher, encryptCipher,
             success = false,
             message = "Challenge failed"
         )
@@ -332,9 +333,7 @@ private suspend fun performHandshake(
 
     val verifyResult = verifyProfile(requestedUuid, requestedUsername, authKey)
     return HandshakeResult(
-        requestedUuid, connectionId,
-        if (supportsEncryption) MinecraftCrypt.getCipher(Cipher.DECRYPT_MODE, secretKey) else null,
-        if (supportsEncryption) MinecraftCrypt.getCipher(Cipher.ENCRYPT_MODE, secretKey) else null,
+        requestedUuid, connectionId, decryptCipher, encryptCipher,
         success = !verifyResult.isMismatch || !verifyResult.mismatchIsError,
         message = verifyResult.takeIf(VerifyProfileResult::isMismatch)?.messageWithUuidInfo()
     )
