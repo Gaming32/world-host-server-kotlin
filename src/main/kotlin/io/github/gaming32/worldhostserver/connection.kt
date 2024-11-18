@@ -26,12 +26,16 @@ data class Connection(
         return "Connection(id=$id, address=$address, userUuid=$userUuid)"
     }
 
-    suspend fun recvMessage() = socket.recvMessage(decryptCipher, protocolVersion)
+    suspend fun recvMessage() = socket.recvMessage(decryptCipher, encryptCipher, protocolVersion)
 
     suspend fun sendMessage(message: WorldHostS2CMessage) {
         if (protocolVersion >= message.firstProtocol) {
             socket.sendMessage(message, encryptCipher)
         }
+    }
+
+    suspend fun closeError(message: String) {
+        socket.closeError(message, encryptCipher)
     }
 }
 

@@ -207,14 +207,14 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                     while (!whConnections.add(connection)) {
                         val other = whConnections.byId(connection.id)
                         if (other?.address == connection.address) {
-                            other.socket.closeError("Connection ID taken by same IP.")
+                            other.closeError("Connection ID taken by same IP.")
                             whConnections.add(connection, true)
                             break
                         }
                         val time = System.currentTimeMillis()
                         if (time - start > 500) {
                             logger.warn { "ID ${connection.id} used twice. Disconnecting $connection." }
-                            return@launch socket.closeError("That connection ID is taken.")
+                            return@launch connection.closeError("That connection ID is taken.")
                         }
                         yield()
                     }
@@ -262,7 +262,11 @@ suspend fun WorldHostServer.runMainServer() = coroutineScope {
                     // Shouldn't this be throwing a ClosedReceiveChannelException instead?
                     if (!e.isSimpleDisconnectException) {
                         logger.error(e) { "A critical error occurred in WH client handling" }
-                        socket.closeError(e.toString())
+                        if (connection != null) {
+                            connection.closeError(e.toString())
+                        } else {
+                            socket.closeError(e.toString())
+                        }
                     }
                 } finally {
                     socket.close()

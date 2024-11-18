@@ -37,12 +37,13 @@ class SocketWrapper(socket: Socket) {
 
     suspend fun recvMessage(
         decryptCipher: Cipher? = null,
+        encryptCipher: Cipher? = null,
         maxProtocolVersion: Int? = null
     ) = recvLock.withLock {
         val size = readChannel.readEncrypted(4, decryptCipher).int
         if (size == 0) {
             "Message is empty".let {
-                closeError(it)
+                closeError(it, encryptCipher)
                 throw IllegalArgumentException(it)
             }
         }
